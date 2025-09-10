@@ -109,13 +109,12 @@ namespace KY_MES.Application.Utils
                         defectsByBoard.Add(new Domain.V1.DTOs.OutputModels.Defect
                         {
                             //Original
-                            //defectId = "",
-                            //defectName = defect.Defect,
-                            //defectCRD = defect.Comp
                             defectId = "",
                             defectName = defect.Defect,
-                            defectCRD = "HALBIM",
-                            defectComment = defect.Comp
+                            defectCRD = defect.Comp
+                            //defectId = "",
+                            //defectName = defect.Defect,
+                            //defectComment = defect.Comp
                         });
                     }
                     var matchingWipId = (from panelWips
