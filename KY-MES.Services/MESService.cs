@@ -37,7 +37,7 @@ namespace KY_MES.Services
                 var byteArray = Encoding.ASCII.GetBytes($"{signInRequestModel.Username}:{signInRequestModel.Password}");
                 var base64Credentials = Convert.ToBase64String(byteArray);
 
-                var signInUrl = MesBaseUrl + @"api-external-api/api/user/signin";
+                var signInUrl = MesBaseUrl + @"api-external-api/api/user/adsignin";
 
                 // Set the Basic Authentication header
                 _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", base64Credentials);
@@ -85,7 +85,7 @@ namespace KY_MES.Services
                 var responseModel = JsonConvert.DeserializeObject<OkToStartResponseModel>(responseBody);
                 return responseModel;
 
-    }
+            }
             catch (Exception ex)
             {
 
@@ -139,6 +139,21 @@ namespace KY_MES.Services
         {
             try
             {
+                // Remove duplicatas dentro de cada panelDefect
+                if (addDefectRequestModel.panelDefects != null)
+                {
+                    foreach (var panel in addDefectRequestModel.panelDefects)
+                    {
+                        if (panel.defects != null)
+                        {
+                            panel.defects = panel.defects
+                                .GroupBy(d => new { d.defectName, d.defectCRD }) // define critério de unicidade
+                                .Select(g => g.First())
+                                .ToList();
+                        }
+                    }
+                }
+
                 var addDefectUrl = $"{MesBaseUrl}api-external-api/api/Wips/{WipId}/AddDefects";
 
                 var jsonContent = JsonConvert.SerializeObject(addDefectRequestModel);
@@ -147,17 +162,16 @@ namespace KY_MES.Services
                 var response = await _client.PostAsync(addDefectUrl, content);
                 response.EnsureSuccessStatusCode();
 
-                //var responseBody = await response.Content.ReadAsStringAsync();
-                //var responseModel = JsonConvert.DeserializeObject<List<AddDefectResponseModel>>(responseBody);
                 await CompleteWipIoTAsync(WipId);
-                //return responseModel.FirstOrDefault();
+
                 return new AddDefectResponseModel();
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 throw new Exception($"Erro ao executar AddDefect. Mensagem: {ex.Message}");
             }
         }
+
 
         public async Task CompleteWipIoTAsync(int wipId)
         {
