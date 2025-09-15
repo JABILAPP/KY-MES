@@ -98,7 +98,7 @@ namespace KY_MES.Application.Utils
 
         public AddDefectRequestModel ToAddDefect(SPIInputModel spi, GetWipIdBySerialNumberResponseModels getWip)
         {
-            
+            //
             var defectMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 ["UNUSED"] = "UNUSED",
