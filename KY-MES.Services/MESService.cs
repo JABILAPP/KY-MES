@@ -2,6 +2,7 @@
 using KY_MES.Domain.V1.DTOs.OutputModels;
 using KY_MES.Services.DomainServices.Interfaces;
 using Newtonsoft.Json;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
@@ -14,6 +15,13 @@ namespace KY_MES.Services
         private readonly CookieContainer _cookieContainer;
         private readonly HttpClientHandler _handler;
         private readonly HttpClient _client;
+
+
+        private readonly ConcurrentDictionary<int, List<int>> _indictmentsByWip = new ConcurrentDictionary<int, List<int>>();
+        private readonly ConcurrentDictionary<string, List<int>> _wipIdsBySerial = new ConcurrentDictionary<string, List<int>>();
+
+
+
 
         public MESService()
         {
@@ -217,5 +225,160 @@ namespace KY_MES.Services
                 throw new Exception($"Erro ao executar CompleteWipPass. Mensagem: {ex.Message}");
             }
         }
+
+
+        public async Task<List<int>> GetIndictmentIds(int wipId)
+        {
+            try
+            {
+                var listDefectUrl = $"{MesBaseUrl}api-external-api/api/Wips/ListDefectsByWipId?WipId={wipId}&OnlyOpenDefects=true";
+
+                var getResponse = await _client.GetAsync(listDefectUrl);
+
+                getResponse.EnsureSuccessStatusCode();
+
+                var getBody = await getResponse.Content.ReadAsStringAsync();
+
+
+                var defects = JsonConvert.DeserializeObject<List<DefectDtoMin>>(getBody) ?? new List<DefectDtoMin>();
+
+                var indictmentIds = defects
+                    .Where(d => d.IndictmentId.HasValue && d.IndictmentId.Value > 0)
+                    .Select(d => d.IndictmentId!.Value)
+                    .Distinct()
+                    .ToList();
+
+                _indictmentsByWip[wipId] = indictmentIds;
+
+                return indictmentIds;
+
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Erro ao pegar IndictmentId: {ex.Message}");
+            }
+        }
+
+
+
+
+        public async Task<List<int>> GetWipIds(string serialNumber)
+        {
+            try
+            {
+                var wipIdsUrl = $"{MesBaseUrl}api-external-api/api/Wips/GetWipIdBySerialNumber?SiteName=MANAUS&SerialNumber={serialNumber}";
+
+                var getResponse = await _client.GetAsync(wipIdsUrl);
+                getResponse.EnsureSuccessStatusCode();
+
+                var getBody = await getResponse.Content.ReadAsStringAsync();
+
+                var items = JsonConvert.DeserializeObject<List<WipBySerialResponseItem>>(getBody) ?? new List<WipBySerialResponseItem>();
+
+
+                var wipIdList =
+                items.SelectMany(rootItem =>
+                {
+                    var list = new List<int>();
+
+                    if (rootItem.WipId.HasValue && rootItem.WipId.Value > 0)
+                        list.Add(rootItem.WipId.Value);
+
+                    if (rootItem.Panel?.PanelWips != null)
+                    {
+                        foreach (var pw in rootItem.Panel.PanelWips)
+                        {
+                            if (pw?.WipId.HasValue == true && pw.WipId.Value > 0)
+                                list.Add(pw.WipId.Value);
+                        }
+                    }
+
+                    return list;
+                })
+                .Distinct()
+                .OrderBy(id => id)
+                .ToList();
+
+                _wipIdsBySerial[serialNumber] = wipIdList;
+
+                return wipIdList;
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Erro ao pegar WipIds: {ex.Message}");
+            }
+        }
+
+
+        public async Task OkToStartRework (int wipId, string resourceName)
+        {
+            try
+            {
+                var wipIdsUrl = $"{MesBaseUrl}api-external-api/api/Wips/{wipId}/oktostart?resourceName={resourceName}";
+
+                var getResponse = await _client.GetAsync(wipIdsUrl);
+
+                getResponse.EnsureSuccessStatusCode();
+
+                var getBody = await getResponse.Content.ReadAsStringAsync();
+
+                return;
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Erro ao Ok To Start para Rework: {ex.Message}");
+            }
+        }
+
+
+        public async Task AddRework(int wipId, int indicmentId)
+        {
+            try
+            {
+                var addReworkUrl = $"{MesBaseUrl}api-external-api/api/InspectionAndRework/{wipId}/addrework";
+
+                var payload = new AddReworkRequest
+                {
+                    WipId = wipId,
+                    ReworkCategory = "Rework",
+                    Detail = "",
+                    Comment = "string",
+                    IndictmentId = indicmentId,
+                    ReplaceDetail = new ReplaceDetail
+                    {
+                        SerialNumber = "string",
+                        Grn = "string",
+                        Upds = new List<UpdItem>(),
+                        DataCollectionItems = new List<DataCollectionItem>()
+                    }
+                };
+
+                var jsonContent = JsonConvert.SerializeObject(payload);
+                using var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
+
+                using var response = await _client.PostAsync(addReworkUrl, content);
+                var responseBody = await response.Content.ReadAsStringAsync(); 
+                response.EnsureSuccessStatusCode();
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Erro ao Adicionar Rework: {ex.Message}");
+            }
+        }
+
+
+
+
+        public IReadOnlyList<int> GetCachedWipIds(string serialNumber)
+        {
+            return _wipIdsBySerial.TryGetValue(serialNumber, out var ids) ? ids : Array.Empty<int>();
+        }
+
+        public IReadOnlyList<int> GetCachedIndictmentIds (int wipId)
+        {
+            return _indictmentsByWip.TryGetValue(wipId, out var ids) ? ids : Array.Empty<int>();
+        }
+    
+    
     }
 }

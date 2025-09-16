@@ -17,5 +17,16 @@ namespace KY_MES.Services.DomainServices.Interfaces
         Task<CompleteWipResponseModel> CompleteWipFailAsync(CompleteWipFailRequestModel completWipRequestModel, string WipId);
         Task<AddDefectResponseModel> AddDefectAsync(AddDefectRequestModel addDefectRequestModel, int WipId);
         Task<CompleteWipResponseModel> CompleteWipPassAsync(CompleteWipPassRequestModel completWipRequestModel, string WipId);
+
+
+
+        // new methods
+        Task<List<int>> GetIndictmentIds(int wipId);
+
+        Task<List<int>> GetWipIds(string serialNumber);
+
+        Task OkToStartRework(int wipId, string resourceName);
+        Task AddRework(int wipId, int indicmentId);
+
     }
 }

@@ -3,6 +3,7 @@ using KY_MES.Domain.V1.DTOs.InputModels;
 using KY_MES.Domain.V1.DTOs.OutputModels;
 using KY_MES.Domain.V1.Interfaces;
 using KY_MES.Services.DomainServices.Interfaces;
+using System.Collections.Concurrent;
 using System.Net;
 
 namespace KY_MES.Controllers
@@ -11,6 +12,9 @@ namespace KY_MES.Controllers
     {
         private readonly IMESService _mESService;
         private readonly Utils utils;
+
+
+        
         public KY_MESApplication(IMESService mESService)
         {
             _mESService = mESService;
@@ -73,6 +77,21 @@ namespace KY_MES.Controllers
                                 getWipResponse.WipId
                             )
                         );
+
+
+                        // inserir a rotina p fechamento do defect em caso de falsa falha 
+
+                        // 1. Capturar o wip ID do produto 
+
+                        // 2. Ir o ListDefect 
+                        //  var indictmentIds = await _mESService.GetIndictmentIds(productDefectWipId);
+                
+                        // 4. Ok to Start 
+
+                        // 5. Reportar no endpoit InspectionAndRework 
+
+
+
                     }
                     catch (Exception ex)
                     {
@@ -98,6 +117,35 @@ namespace KY_MES.Controllers
                 return HttpStatusCode.BadRequest;
                 throw new Exception("complete wip failed");
             }
+
+            // 1. Capturar o wip ID do produto e resorce name
+            var serialNumber = sPIInput.Inspection.Barcode;
+            var wipPrincipal = getWipResponse.WipId;
+            var resourceMachine = sPIInput.Inspection.Machine;
+            // var resourceMachine = "JUTAI - Repair 01";
+            
+            var wipids = await _mESService.GetWipIds(serialNumber!);
+
+            // Ir o ListDefect e verificar se retornam vazios ou nao
+            foreach (var wip in wipids)
+            {
+                var indictmentIds = await _mESService.GetIndictmentIds(wip);
+
+                if (indictmentIds.Count > 0)
+                {
+                    await _mESService.OkToStartRework(wip, resourceMachine!);
+
+                    foreach (var indictmentId in indictmentIds)
+                    {
+                        await _mESService.AddRework(wip, indictmentId);
+                    }
+
+              
+
+                }
+            }
+
+
             return HttpStatusCode.OK;
         }
     }
