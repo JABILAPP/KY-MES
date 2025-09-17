@@ -227,6 +227,9 @@ namespace KY_MES.Services
         }
 
 
+
+        #region New Methods for automatic rework to retest the board in production line 
+        #endregion
         public async Task<List<int>> GetIndictmentIds(int wipId)
         {
             try
@@ -262,7 +265,7 @@ namespace KY_MES.Services
 
 
 
-        public async Task<List<int>> GetWipIds(string serialNumber)
+        public async Task<List<WipSerial>> GetWipIds(string serialNumber)
         {
             try
             {
@@ -273,35 +276,63 @@ namespace KY_MES.Services
 
                 var getBody = await getResponse.Content.ReadAsStringAsync();
 
-                var items = JsonConvert.DeserializeObject<List<WipBySerialResponseItem>>(getBody) ?? new List<WipBySerialResponseItem>();
+                var items = JsonConvert.DeserializeObject<List<WipBySerialResponseItem>>(getBody) 
+                            ?? new List<WipBySerialResponseItem>();
 
-
-                var wipIdList =
-                items.SelectMany(rootItem =>
+                var pairs = items.SelectMany(rootItem =>
                 {
-                    var list = new List<int>();
+                    var list = new List<WipSerial>();
 
                     if (rootItem.WipId.HasValue && rootItem.WipId.Value > 0)
-                        list.Add(rootItem.WipId.Value);
+                    {
+                        var sn = !string.IsNullOrWhiteSpace(rootItem.SerialNumber)
+                                    ? rootItem.SerialNumber
+                                    : (rootItem.Panel?.PanelSerialNumber ?? string.Empty);
+
+                        if (!string.IsNullOrWhiteSpace(sn))
+                        {
+                            list.Add(new WipSerial
+                            {
+                                WipId = rootItem.WipId.Value,
+                                SerialNumber = sn
+                            });
+                        }
+                    }
 
                     if (rootItem.Panel?.PanelWips != null)
                     {
                         foreach (var pw in rootItem.Panel.PanelWips)
                         {
                             if (pw?.WipId.HasValue == true && pw.WipId.Value > 0)
-                                list.Add(pw.WipId.Value);
+                            {
+                                // Usa o SerialNumber do próprio PanelWip, que é o desejado
+                                if (!string.IsNullOrWhiteSpace(pw.SerialNumber))
+                                {
+                                    list.Add(new WipSerial
+                                    {
+                                        WipId = pw.WipId.Value,
+                                        SerialNumber = pw.SerialNumber
+                                    });
+                                }
+                            }
                         }
                     }
 
                     return list;
                 })
-                .Distinct()
-                .OrderBy(id => id)
+                // Remove duplicados por WipId, mantendo o primeiro par encontrado
+                .GroupBy(x => x.WipId)
+                .Select(g => g.First())
+                .OrderBy(x => x.WipId)
                 .ToList();
 
-                _wipIdsBySerial[serialNumber] = wipIdList;
+                // Se você ainda quiser manter um cache, mude o tipo do dicionário:
+                // Dictionary<string, List<WipSerial>> _wipIdsBySerial;
+                _wipIdsBySerial[serialNumber] = pairs
+                    .Select(p => p.WipId) // se o cache antigo precisa só de IDs, mantenha assim
+                    .ToList();
 
-                return wipIdList;
+                return pairs;
             }
             catch (Exception ex)
             {
@@ -310,17 +341,25 @@ namespace KY_MES.Services
         }
 
 
-        public async Task OkToStartRework (int wipId, string resourceName)
+        public async Task OkToStartRework(int wipId, string resourceName, string serialNumber)
         {
             try
             {
-                var wipIdsUrl = $"{MesBaseUrl}api-external-api/api/Wips/{wipId}/oktostart?resourceName={resourceName}";
+                var url = $"{MesBaseUrl}api-external-api/api/PanelWip/startWip";
 
-                var getResponse = await _client.GetAsync(wipIdsUrl);
+                var payload = new
+                {
+                    wipId = wipId,
+                    serialNumber = serialNumber,
+                    resourceName = resourceName
+                };
 
-                getResponse.EnsureSuccessStatusCode();
+                var json = JsonConvert.SerializeObject(payload);
+                using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
 
-                var getBody = await getResponse.Content.ReadAsStringAsync();
+                var response = await _client.PostAsync(url, content);
+                response.EnsureSuccessStatusCode();
+
 
                 return;
             }
@@ -365,6 +404,33 @@ namespace KY_MES.Services
                 throw new Exception($"Erro ao Adicionar Rework: {ex.Message}");
             }
         }
+
+        public async Task CompleteRework(int wipId)
+        {
+            try
+            {
+                var url = $"{MesBaseUrl}/api-external-api/api/Wips/{wipId}/complete";
+
+                var payload = new
+                {
+                    wipId = wipId
+                };
+
+                var json = JsonConvert.SerializeObject(payload);
+                using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+                var response = await _client.PostAsync(url, content);
+                response.EnsureSuccessStatusCode();
+
+
+                return;
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Erro ao Ok To Start para Rework: {ex.Message}");
+            }
+        }
+
 
 
 

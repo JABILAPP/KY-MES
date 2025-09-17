@@ -121,30 +121,28 @@ namespace KY_MES.Controllers
             // 1. Capturar o wip ID do produto e resorce name
             var serialNumber = sPIInput.Inspection.Barcode;
             var wipPrincipal = getWipResponse.WipId;
-            var resourceMachine = sPIInput.Inspection.Machine;
-            // var resourceMachine = "JUTAI - Repair 01";
+            // var resourceMachine = sPIInput.Inspection.Machine;
+            var resourceMachine = "NEGRO - Repair 01";
             
             var wipids = await _mESService.GetWipIds(serialNumber!);
 
             // Ir o ListDefect e verificar se retornam vazios ou nao
             foreach (var wip in wipids)
             {
-                var indictmentIds = await _mESService.GetIndictmentIds(wip);
+                var indictmentIds = await _mESService.GetIndictmentIds(wip.WipId);
 
                 if (indictmentIds.Count > 0)
                 {
-                    await _mESService.OkToStartRework(wip, resourceMachine!);
+                    await _mESService.OkToStartRework(wip.WipId, resourceMachine!, wip.SerialNumber);
 
                     foreach (var indictmentId in indictmentIds)
                     {
-                        await _mESService.AddRework(wip, indictmentId);
+                        await _mESService.AddRework(wip.WipId, indictmentId);
                     }
-
-              
-
                 }
             }
 
+            await _mESService.CompleteRework(wipPrincipal);
 
             return HttpStatusCode.OK;
         }
