@@ -36,19 +36,14 @@ namespace KY_MES.Controllers
                 throw new Exception("WipId is null");
             }
 
-            var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInput, getWipResponse));
-            if (!okToTestResponse.OkToStart || okToTestResponse == null)
-            {
-                return HttpStatusCode.BadRequest;
-                throw new Exception("Check PV failed");
-            }
 
-            var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInput, getWipResponse));
-            if (!startWipResponse.Success || startWipResponse == null)
-            {
-                return HttpStatusCode.BadRequest;
-                throw new Exception("start Wip failed");
-            }
+            // 1. Capturar o wip ID do produto e resorce name
+            var serialNumber = sPIInput.Inspection.Barcode;
+            var wipPrincipal = getWipResponse.WipId;
+            var resourceMachine = "NEGRO - Repair 01";
+            
+            var wipids = await _mESService.GetWipIds(serialNumber!);
+
 
             //var completeWipResponse = sPIInput.Inspection.Result.Contains("NG")
             //    //? await _mESService.CompleteWipFailAsync(utils.ToCompleteWipFail(sPIInput, getWipResponse), getWipResponse.WipId.ToString())
@@ -58,14 +53,58 @@ namespace KY_MES.Controllers
             //At request of Louise and Elson
             //Added logic that retries adding defects up to 10 times if it fails, with a slight delay between attempts.
 
+
+
             CompleteWipResponseModel? completeWipResponse = null;
 
             Task.Delay(2000);
 
             if (sPIInput.Inspection.Result.Contains("NG"))
             {
+
+                var resourceMachineGood = "NEGRO - Repair 01";
+                
+                var wipidsGood = await _mESService.GetWipIds(serialNumber!);
+
+                // Ir o ListDefect e verificar se retornam vazios ou nao
+                foreach (var wip in wipids)
+                {
+                    var indictmentIds = await _mESService.GetIndictmentIds(wip.WipId);
+
+                    if (indictmentIds.Count > 0)
+                    {
+                        await _mESService.OkToStartRework(wip.WipId, resourceMachineGood!, wip.SerialNumber);
+
+                        foreach (var indictmentId in indictmentIds)
+                        {
+                            await _mESService.AddRework(wip.WipId, indictmentId);
+                        }
+
+                        await _mESService.CompleteRework(wipPrincipal);
+
+                        // return HttpStatusCode.OK;
+                    }
+                }
+
+
+
+                var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInput, getWipResponse));
+                if (!okToTestResponse.OkToStart || okToTestResponse == null)
+                {
+                    return HttpStatusCode.BadRequest;
+                    throw new Exception("Check PV failed");
+                }
+
+                var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInput, getWipResponse));
+                if (!startWipResponse.Success || startWipResponse == null)
+                {
+                    return HttpStatusCode.BadRequest;
+                    throw new Exception("start Wip failed");
+                }
+
+                
                 int retryCount = 0;
-                int maxRetries = 10; // Prevent infinite loop
+                int maxRetries = 10; 
 
                 do
                 {
@@ -77,21 +116,6 @@ namespace KY_MES.Controllers
                                 getWipResponse.WipId
                             )
                         );
-
-
-                        // inserir a rotina p fechamento do defect em caso de falsa falha 
-
-                        // 1. Capturar o wip ID do produto 
-
-                        // 2. Ir o ListDefect 
-                        //  var indictmentIds = await _mESService.GetIndictmentIds(productDefectWipId);
-                
-                        // 4. Ok to Start 
-
-                        // 5. Reportar no endpoit InspectionAndRework 
-
-
-
                     }
                     catch (Exception ex)
                     {
@@ -107,6 +131,47 @@ namespace KY_MES.Controllers
             }
             else
             {
+
+
+                var resourceMachineGood = "NEGRO - Repair 01";
+                
+                var wipidsGood = await _mESService.GetWipIds(serialNumber!);
+
+                // Ir o ListDefect e verificar se retornam vazios ou nao
+                foreach (var wip in wipids)
+                {
+                    var indictmentIds = await _mESService.GetIndictmentIds(wip.WipId);
+
+                    if (indictmentIds.Count > 0)
+                    {
+                        await _mESService.OkToStartRework(wip.WipId, resourceMachineGood!, wip.SerialNumber);
+
+                        foreach (var indictmentId in indictmentIds)
+                        {
+                            await _mESService.AddRework(wip.WipId, indictmentId);
+                        }
+
+                        await _mESService.CompleteRework(wipPrincipal);
+
+                        // return HttpStatusCode.OK;
+                    }
+                }
+
+                var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInput, getWipResponse));
+                if (!okToTestResponse.OkToStart || okToTestResponse == null)
+                {
+                    return HttpStatusCode.BadRequest;
+                    throw new Exception("Check PV failed");
+                }
+
+                var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInput, getWipResponse));
+                if (!startWipResponse.Success || startWipResponse == null)
+                {
+                    return HttpStatusCode.BadRequest;
+                    throw new Exception("start Wip failed");
+                }
+
+
                 completeWipResponse = await _mESService.CompleteWipPassAsync(
                     utils.ToCompleteWipPass(sPIInput, getWipResponse), getWipResponse.WipId.ToString()
                 );
@@ -118,32 +183,8 @@ namespace KY_MES.Controllers
                 throw new Exception("complete wip failed");
             }
 
-            // 1. Capturar o wip ID do produto e resorce name
-            var serialNumber = sPIInput.Inspection.Barcode;
-            var wipPrincipal = getWipResponse.WipId;
-            // var resourceMachine = sPIInput.Inspection.Machine;
-            var resourceMachine = "NEGRO - Repair 01";
-            
-            var wipids = await _mESService.GetWipIds(serialNumber!);
 
-            // Ir o ListDefect e verificar se retornam vazios ou nao
-            foreach (var wip in wipids)
-            {
-                var indictmentIds = await _mESService.GetIndictmentIds(wip.WipId);
-
-                if (indictmentIds.Count > 0)
-                {
-                    await _mESService.OkToStartRework(wip.WipId, resourceMachine!, wip.SerialNumber);
-
-                    foreach (var indictmentId in indictmentIds)
-                    {
-                        await _mESService.AddRework(wip.WipId, indictmentId);
-                    }
-                }
-            }
-
-            await _mESService.CompleteRework(wipPrincipal);
-
+           
             return HttpStatusCode.OK;
         }
     }
