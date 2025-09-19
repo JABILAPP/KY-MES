@@ -6,6 +6,7 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
+using Newtonsoft.Json.Linq;
 
 namespace KY_MES.Services
 {
@@ -63,6 +64,8 @@ namespace KY_MES.Services
                 throw new Exception($"Erro ao tentar o login com as credenciais fornecidas. Mensagem: {ex.Message}");
             }
         }
+       
+       
         public async Task<GetWipIdBySerialNumberResponseModels> GetWipIdBySerialNumberAsync(GetWipIdBySerialNumberRequestModel getWipIdRequestModel)
         {
             try
@@ -80,6 +83,8 @@ namespace KY_MES.Services
             catch (Exception ex) { throw new Exception($"Erro ao coletar o WipId. Mensagem: {ex.Message}"); }
 
         }
+
+
         public async Task<OkToStartResponseModel> OkToStartAsync(OkToStartRequestModel okToStartRequestModel)
         {
             try
@@ -100,6 +105,9 @@ namespace KY_MES.Services
                 throw new Exception($"Erro ao fazer o Check PV. Mensagem: {ex.Message}");
             }
         }
+
+
+
         public async Task<StartWipResponseModel> StartWipAsync(StartWipRequestModel startWipRequestModel)
         {
             try
@@ -121,6 +129,8 @@ namespace KY_MES.Services
                 throw new Exception($"Erro ao executar StartWip. Mensagem: {ex.Message}");
             }
         }
+
+
         public async Task<CompleteWipResponseModel> CompleteWipFailAsync(CompleteWipFailRequestModel completWipRequestModel, string WipId)
         {
             try
@@ -305,7 +315,6 @@ namespace KY_MES.Services
                         {
                             if (pw?.WipId.HasValue == true && pw.WipId.Value > 0)
                             {
-                                // Usa o SerialNumber do próprio PanelWip, que é o desejado
                                 if (!string.IsNullOrWhiteSpace(pw.SerialNumber))
                                 {
                                     list.Add(new WipSerial
@@ -320,16 +329,13 @@ namespace KY_MES.Services
 
                     return list;
                 })
-                // Remove duplicados por WipId, mantendo o primeiro par encontrado
                 .GroupBy(x => x.WipId)
                 .Select(g => g.First())
                 .OrderBy(x => x.WipId)
                 .ToList();
 
-                // Se você ainda quiser manter um cache, mude o tipo do dicionário:
-                // Dictionary<string, List<WipSerial>> _wipIdsBySerial;
                 _wipIdsBySerial[serialNumber] = pairs
-                    .Select(p => p.WipId) // se o cache antigo precisa só de IDs, mantenha assim
+                    .Select(p => p.WipId) 
                     .ToList();
 
                 return pairs;
@@ -433,6 +439,52 @@ namespace KY_MES.Services
 
 
 
+
+        public async Task<OperationInfo?> GetOperationInfoAsync(string serialNumber)
+        {
+            var url = $"{MesBaseUrl}api-external-api/api/Wips/OperationHistories?SiteName=MANAUS&SerialNumber={serialNumber}";
+            var resp = await _client.GetAsync(url);
+            resp.EnsureSuccessStatusCode();
+
+            var body = await resp.Content.ReadAsStringAsync();
+
+            var root = JObject.Parse(body);
+
+            var wips = (JArray?)root["Wips"];
+            var wip = wips?
+                .FirstOrDefault(w => string.Equals((string?)w["SerialNumber"], serialNumber, StringComparison.OrdinalIgnoreCase))
+                ?? wips?.FirstOrDefault();
+
+            if (wip == null)
+                return null;
+
+            var opHistories = (JArray?)wip["OperationHistories"];
+            var op = opHistories?.FirstOrDefault();
+            if (op == null)
+                return new OperationInfo
+                {
+                    SerialNumber = (string?)wip["SerialNumber"],
+                    WipId = (int?)wip["WipId"],
+                    CustomerName = (string?)wip["CustomerName"]
+                };
+
+            // Monta o objeto único
+            var result = new OperationInfo
+            {
+                // Do Wip
+                SerialNumber = (string?)wip["SerialNumber"],
+                WipId = (int?)wip["WipId"],
+                CustomerName = (string?)wip["CustomerName"],
+
+                // Do OperationHistory 
+                ManufacturingArea = (string?)op["ManufacturingArea"],
+                RouteStepId = (int?)op["RouteStepId"],
+                RouteStepName = (string?)op["RouteStepName"],
+                Resource = (string?)op["Resource"]
+            };
+
+            return result;
+        }
 
 
         public IReadOnlyList<int> GetCachedWipIds(string serialNumber)

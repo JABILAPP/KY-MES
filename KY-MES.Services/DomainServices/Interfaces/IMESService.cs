@@ -22,13 +22,11 @@ namespace KY_MES.Services.DomainServices.Interfaces
 
         // new methods
         Task<List<int>> GetIndictmentIds(int wipId);
-
         Task<List<WipSerial>> GetWipIds(string serialNumber);
-
         Task OkToStartRework(int wipId, string resourceName, string serialNumber);
         Task AddRework(int wipId, int indicmentId);
-
         Task CompleteRework(int wipId);
+        Task<OperationInfo?> GetOperationInfoAsync(string serialNumber);
 
     }
 }

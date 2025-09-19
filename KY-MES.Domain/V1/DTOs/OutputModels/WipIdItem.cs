@@ -25,4 +25,16 @@ namespace KY_MES.Domain.V1.DTOs.OutputModels
         public int? PanelPosition { get; set; }
         public bool? IsPanelBroken { get; set; }
     }
+
+
+    public sealed class OperationInfo
+    {
+        public string? SerialNumber { get; set; }
+        public int? WipId { get; set; }
+        public string? CustomerName { get; set; }
+        public string? ManufacturingArea { get; set; }
+        public int? RouteStepId { get; set; }
+        public string? RouteStepName { get; set; }
+        public string? Resource { get; set; }
+    }
 }

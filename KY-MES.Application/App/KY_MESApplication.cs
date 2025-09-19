@@ -28,6 +28,8 @@ namespace KY_MES.Controllers
 
             await _mESService.SignInAsync(utils.SignInRequest(username, password));
 
+            var operationhistory = await _mESService.GetOperationInfoAsync(sPIInput.Inspection.Barcode);
+
             var getWipResponse = await _mESService.GetWipIdBySerialNumberAsync(utils.SpiToGetWip(sPIInput));
 
             if (getWipResponse.WipId == null)
@@ -37,23 +39,10 @@ namespace KY_MES.Controllers
             }
 
 
-            // 1. Capturar o wip ID do produto e resorce name
+            // 1. Capturar o wip ID do produto e serial
             var serialNumber = sPIInput.Inspection.Barcode;
             var wipPrincipal = getWipResponse.WipId;
-            var resourceMachine = "NEGRO - Repair 01";
-            
             var wipids = await _mESService.GetWipIds(serialNumber!);
-
-
-            //var completeWipResponse = sPIInput.Inspection.Result.Contains("NG")
-            //    //? await _mESService.CompleteWipFailAsync(utils.ToCompleteWipFail(sPIInput, getWipResponse), getWipResponse.WipId.ToString())
-            //    ? await utils.AddDefectToCompleteWip(_mESService.AddDefectAsync(utils.ToAddDefect(sPIInput, getWipResponse), getWipResponse.WipId.ToString()))
-            //    : await _mESService.CompleteWipPassAsync(utils.ToCompleteWipPass(sPIInput, getWipResponse), getWipResponse.WipId.ToString());
-
-            //At request of Louise and Elson
-            //Added logic that retries adding defects up to 10 times if it fails, with a slight delay between attempts.
-
-
 
             CompleteWipResponseModel? completeWipResponse = null;
 
@@ -61,120 +50,175 @@ namespace KY_MES.Controllers
 
             if (sPIInput.Inspection.Result.Contains("NG"))
             {
-
-                var resourceMachineGood = "NEGRO - Repair 01";
-                
-                var wipidsGood = await _mESService.GetWipIds(serialNumber!);
-
-                // Ir o ListDefect e verificar se retornam vazios ou nao
-                foreach (var wip in wipids)
+                // DIFERENCIAÇÃO DE INPUT PARA OS LOGS DE SPI 
+                if (sPIInput.Inspection.Machine.StartsWith("SS-DL"))
                 {
-                    var indictmentIds = await _mESService.GetIndictmentIds(wip.WipId);
+                    // RESOURCE MACHINE PARA SPI 
+                    string? manufacturingArea = operationhistory.ManufacturingArea;
+                    string suffix = "- Repair 01";
 
-                    if (indictmentIds.Count > 0)
+                    string resourceMachineSPI = string.IsNullOrWhiteSpace(manufacturingArea)
+                        ? suffix 
+                        : $"{manufacturingArea.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Last()} {suffix}";
+
+                    // Ir o ListDefect e verificar se retornam vazios ou nao
+                    foreach (var wip in wipids)
                     {
-                        await _mESService.OkToStartRework(wip.WipId, resourceMachineGood!, wip.SerialNumber);
+                        var indictmentIds = await _mESService.GetIndictmentIds(wip.WipId);
 
-                        foreach (var indictmentId in indictmentIds)
+                        if (indictmentIds.Count > 0)
                         {
-                            await _mESService.AddRework(wip.WipId, indictmentId);
+                            await _mESService.OkToStartRework(wip.WipId, resourceMachineSPI!, wip.SerialNumber);
+
+                            foreach (var indictmentId in indictmentIds)
+                            {
+                                await _mESService.AddRework(wip.WipId, indictmentId);
+                            }
+
+                            await _mESService.CompleteRework(wipPrincipal);
                         }
-
-                        await _mESService.CompleteRework(wipPrincipal);
-
-                        // return HttpStatusCode.OK;
                     }
-                }
 
-
-
-                var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInput, getWipResponse));
-                if (!okToTestResponse.OkToStart || okToTestResponse == null)
-                {
-                    return HttpStatusCode.BadRequest;
-                    throw new Exception("Check PV failed");
-                }
-
-                var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInput, getWipResponse));
-                if (!startWipResponse.Success || startWipResponse == null)
-                {
-                    return HttpStatusCode.BadRequest;
-                    throw new Exception("start Wip failed");
-                }
-
-                
-                int retryCount = 0;
-                int maxRetries = 10; 
-
-                do
-                {
-                    try
+                    var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInput, getWipResponse));
+                    if (!okToTestResponse.OkToStart || okToTestResponse == null)
                     {
-                        completeWipResponse = await utils.AddDefectToCompleteWip(
-                            _mESService.AddDefectAsync(
-                                utils.ToAddDefect(sPIInput, getWipResponse),
-                                getWipResponse.WipId
-                            )
-                        );
+                        return HttpStatusCode.BadRequest;
+                        throw new Exception("Check PV failed");
                     }
-                    catch (Exception ex)
+
+                    var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInput, getWipResponse));
+                    if (!startWipResponse.Success || startWipResponse == null)
                     {
-                        retryCount++;
-                        if (retryCount >= maxRetries)
+                        return HttpStatusCode.BadRequest;
+                        throw new Exception("start Wip failed");
+                    }
+
+                    int retryCount = 0;
+                    int maxRetries = 10;
+
+                    do
+                    {
+                        try
                         {
-                            throw new Exception($"Failed to add defect after {maxRetries} retries. Message: {ex.Message}");
+                            completeWipResponse = await utils.AddDefectToCompleteWip(
+                                _mESService.AddDefectAsync(
+                                    utils.ToAddDefect(sPIInput, getWipResponse),
+                                    getWipResponse.WipId
+                                )
+                            );
                         }
-                        await Task.Delay(500); // Add slight delay before retrying
+                        catch (Exception ex)
+                        {
+                            retryCount++;
+                            if (retryCount >= maxRetries)
+                            {
+                                throw new Exception($"Failed to add defect after {maxRetries} retries. Message: {ex.Message}");
+                            }
+                            await Task.Delay(500); 
+                        }
                     }
+                    while (completeWipResponse == null && retryCount < maxRetries);
+
                 }
-                while (completeWipResponse == null && retryCount < maxRetries);
+                
             }
             else
             {
 
+                if (sPIInput.Inspection.Machine.StartsWith("SS-DL"))
+                {   
+                    string? manufacturingArea = operationhistory.ManufacturingArea;
+                    string suffix = "- Repair 01";
 
-                var resourceMachineGood = "NEGRO - Repair 01";
-                
-                var wipidsGood = await _mESService.GetWipIds(serialNumber!);
+                    string resourceMachineSPI = string.IsNullOrWhiteSpace(manufacturingArea)
+                        ? suffix 
+                        : $"{manufacturingArea.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Last()} {suffix}";
 
-                // Ir o ListDefect e verificar se retornam vazios ou nao
-                foreach (var wip in wipids)
-                {
-                    var indictmentIds = await _mESService.GetIndictmentIds(wip.WipId);
 
-                    if (indictmentIds.Count > 0)
+                    // Ir o ListDefect e verificar se retornam vazios ou nao
+                    foreach (var wip in wipids)
                     {
-                        await _mESService.OkToStartRework(wip.WipId, resourceMachineGood!, wip.SerialNumber);
+                        var indictmentIds = await _mESService.GetIndictmentIds(wip.WipId);
 
-                        foreach (var indictmentId in indictmentIds)
+                        if (indictmentIds.Count > 0)
                         {
-                            await _mESService.AddRework(wip.WipId, indictmentId);
+                            await _mESService.OkToStartRework(wip.WipId, resourceMachineSPI!, wip.SerialNumber);
+
+                            foreach (var indictmentId in indictmentIds)
+                            {
+                                await _mESService.AddRework(wip.WipId, indictmentId);
+                            }
+
+                            await _mESService.CompleteRework(wipPrincipal);
+
+                            // return HttpStatusCode.OK;
                         }
-
-                        await _mESService.CompleteRework(wipPrincipal);
-
-                        // return HttpStatusCode.OK;
                     }
-                }
 
-                var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInput, getWipResponse));
-                if (!okToTestResponse.OkToStart || okToTestResponse == null)
+                    var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInput, getWipResponse));
+                    if (!okToTestResponse.OkToStart || okToTestResponse == null)
+                    {
+                        return HttpStatusCode.BadRequest;
+                        throw new Exception("Check PV failed");
+                    }
+
+                    var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInput, getWipResponse));
+                    if (!startWipResponse.Success || startWipResponse == null)
+                    {
+                        return HttpStatusCode.BadRequest;
+                        throw new Exception("start Wip failed");
+                    }
+
+
+                    completeWipResponse = await _mESService.CompleteWipPassAsync(
+                        utils.ToCompleteWipPass(sPIInput, getWipResponse), getWipResponse.WipId.ToString()
+                    );
+
+                }
+                else
                 {
-                    return HttpStatusCode.BadRequest;
-                    throw new Exception("Check PV failed");
+
+                    var resourceMachineAOI = "NEGRO - Repair 01";
+
+                    // Ir o ListDefect e verificar se retornam vazios ou nao
+                    foreach (var wip in wipids)
+                    {
+                        var indictmentIds = await _mESService.GetIndictmentIds(wip.WipId);
+
+                        if (indictmentIds.Count > 0)
+                        {
+                            await _mESService.OkToStartRework(wip.WipId, resourceMachineAOI!, wip.SerialNumber);
+
+                            foreach (var indictmentId in indictmentIds)
+                            {
+                                await _mESService.AddRework(wip.WipId, indictmentId);
+                            }
+
+                            await _mESService.CompleteRework(wipPrincipal);
+                        }
+                    }
+
+                    var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInput, getWipResponse));
+                    if (!okToTestResponse.OkToStart || okToTestResponse == null)
+                    {
+                        return HttpStatusCode.BadRequest;
+                        throw new Exception("Check PV failed");
+                    }
+
+                    var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInput, getWipResponse));
+                    if (!startWipResponse.Success || startWipResponse == null)
+                    {
+                        return HttpStatusCode.BadRequest;
+                        throw new Exception("start Wip failed");
+                    }
+
+
+                    completeWipResponse = await _mESService.CompleteWipPassAsync(
+                        utils.ToCompleteWipPass(sPIInput, getWipResponse), getWipResponse.WipId.ToString()
+                    );
+                    
                 }
-
-                var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInput, getWipResponse));
-                if (!startWipResponse.Success || startWipResponse == null)
-                {
-                    return HttpStatusCode.BadRequest;
-                    throw new Exception("start Wip failed");
-                }
-
-
-                completeWipResponse = await _mESService.CompleteWipPassAsync(
-                    utils.ToCompleteWipPass(sPIInput, getWipResponse), getWipResponse.WipId.ToString()
-                );
+                
             }
 
             if (completeWipResponse.Equals(null))
