@@ -177,8 +177,12 @@ namespace KY_MES.Controllers
                 }
                 else
                 {
+                    string? manufacturingArea = operationhistory.ManufacturingArea;
+                    string suffix = "- Repair 01";
 
-                    var resourceMachineAOI = "NEGRO - Repair 01";
+                    string resourceMachineAOI = string.IsNullOrWhiteSpace(manufacturingArea)
+                        ? suffix 
+                        : $"{manufacturingArea.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Last()} {suffix}";
 
                     // Ir o ListDefect e verificar se retornam vazios ou nao
                     foreach (var wip in wipids)
