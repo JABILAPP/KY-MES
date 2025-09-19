@@ -23,8 +23,9 @@ namespace KY_MES.Controllers
 
         public async Task<HttpStatusCode> SPISendWipData(SPIInputModel sPIInput)
         {
-            var username = "svchua_jesmapistg";
-            var password = "qKzla3oBDA51Ecq=+B2_z";
+
+            var username = Environment.GetEnvironmentVariable("Username");
+            var password = Environment.GetEnvironmentVariable("Password");
 
             await _mESService.SignInAsync(utils.SignInRequest(username, password));
 
