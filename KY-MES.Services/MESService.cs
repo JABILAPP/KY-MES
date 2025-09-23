@@ -157,15 +157,19 @@ namespace KY_MES.Services
         {
             try
             {
-                // Remove duplicatas dentro de cada panelDefect
-                if (addDefectRequestModel.panelDefects != null)
+                // Remover duplicatas dentro de cada panelDefect
+                if (addDefectRequestModel?.panelDefects != null)
                 {
                     foreach (var panel in addDefectRequestModel.panelDefects)
                     {
-                        if (panel.defects != null)
+                        if (panel?.defects != null)
                         {
                             panel.defects = panel.defects
-                                .GroupBy(d => new { d.defectName, d.defectCRD }) // define critério de unicidade
+                                .GroupBy(d => new
+                                {
+                                    Comp = (d.defectCRD ?? "").Trim(),
+                                    Defect = (d.defectName ?? "").Trim(),
+                                })
                                 .Select(g => g.First())
                                 .ToList();
                         }
@@ -178,6 +182,7 @@ namespace KY_MES.Services
                 var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
 
                 var response = await _client.PostAsync(addDefectUrl, content);
+                
                 response.EnsureSuccessStatusCode();
 
                 await CompleteWipIoTAsync(WipId);
@@ -186,6 +191,7 @@ namespace KY_MES.Services
             }
             catch (Exception ex)
             {
+
                 throw new Exception($"Erro ao executar AddDefect. Mensagem: {ex.Message}");
             }
         }
@@ -402,7 +408,13 @@ namespace KY_MES.Services
                 using var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
 
                 using var response = await _client.PostAsync(addReworkUrl, content);
-                var responseBody = await response.Content.ReadAsStringAsync(); 
+                var responseBody = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    await AbourtStarted(wipId);
+                }
+
                 response.EnsureSuccessStatusCode();
             }
             catch (Exception ex)
@@ -438,7 +450,33 @@ namespace KY_MES.Services
         }
 
 
+        public async Task AbourtStarted(int wipId)
+        {
+            try
+            {
+                var url = $"{MesBaseUrl}/api-external-api/api/Wips/{wipId}/abort";
 
+                var payload = new
+                {
+                    wipId = wipId,
+                    isSingleWipMode = true
+                };
+
+                var json = JsonConvert.SerializeObject(payload);
+                using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+                var response = await _client.PostAsync(url, content);
+                response.EnsureSuccessStatusCode();
+
+
+                return;
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Erro ao Ok To Start para Rework: {ex.Message}");
+            }
+            
+        }
 
         public async Task<OperationInfo?> GetOperationInfoAsync(string serialNumber)
         {

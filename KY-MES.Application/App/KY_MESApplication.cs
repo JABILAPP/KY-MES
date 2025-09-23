@@ -21,7 +21,7 @@ namespace KY_MES.Controllers
             utils = new Utils();
         }
 
-        public async Task<HttpStatusCode> SPISendWipData(SPIInputModel sPIInput)
+        public async Task<SPIInputModel> SPISendWipData(SPIInputModel sPIInput)
         {
 
             var username = Environment.GetEnvironmentVariable("Username");
@@ -31,6 +31,8 @@ namespace KY_MES.Controllers
 
             var operationhistory = await _mESService.GetOperationInfoAsync(sPIInput.Inspection.Barcode);
 
+            SpiDefectUtils.KeepOneDefectPerCRDIgnoringEmptyComp(sPIInput);
+
             MapearDefeitosSPI(sPIInput);
 
 
@@ -38,7 +40,7 @@ namespace KY_MES.Controllers
 
             if (getWipResponse.WipId == null)
             {
-                return HttpStatusCode.BadRequest;
+                // return HttpStatusCode.BadRequest;
                 throw new Exception("WipId is null");
             }
 
@@ -46,7 +48,7 @@ namespace KY_MES.Controllers
             // 1. Capturar o wip ID do produto e serial
             var serialNumber = sPIInput.Inspection.Barcode;
             var wipPrincipal = getWipResponse.WipId;
-            var wipids = await _mESService.GetWipIds(serialNumber!);
+            var wipIdInts = await _mESService.GetWipIds(serialNumber!);
 
             CompleteWipResponseModel? completeWipResponse = null;
 
@@ -66,7 +68,7 @@ namespace KY_MES.Controllers
                         : $"{manufacturingArea.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Last()} {suffix}";
 
                     // Ir o ListDefect e verificar se retornam vazios ou nao
-                    foreach (var wip in wipids)
+                    foreach (var wip in wipIdInts)
                     {
                         var indictmentIds = await _mESService.GetIndictmentIds(wip.WipId);
 
@@ -86,14 +88,14 @@ namespace KY_MES.Controllers
                     var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInput, getWipResponse));
                     if (!okToTestResponse.OkToStart || okToTestResponse == null)
                     {
-                        return HttpStatusCode.BadRequest;
+                        // return HttpStatusCode.BadRequest;
                         throw new Exception("Check PV failed");
                     }
 
                     var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInput, getWipResponse));
                     if (!startWipResponse.Success || startWipResponse == null)
                     {
-                        return HttpStatusCode.BadRequest;
+                        // return HttpStatusCode.BadRequest;
                         throw new Exception("start Wip failed");
                     }
 
@@ -105,7 +107,7 @@ namespace KY_MES.Controllers
                         try
                         {
                             completeWipResponse = await utils.AddDefectToCompleteWip(
-                                _mESService.AddDefectAsync(
+                                _mESService.AddDefectAsync( 
                                     utils.ToAddDefect(sPIInput, getWipResponse),
                                     getWipResponse.WipId
                                 )
@@ -140,7 +142,7 @@ namespace KY_MES.Controllers
 
 
                     // Ir o ListDefect e verificar se retornam vazios ou nao
-                    foreach (var wip in wipids)
+                    foreach (var wip in wipIdInts)
                     {
                         var indictmentIds = await _mESService.GetIndictmentIds(wip.WipId);
 
@@ -162,14 +164,14 @@ namespace KY_MES.Controllers
                     var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInput, getWipResponse));
                     if (!okToTestResponse.OkToStart || okToTestResponse == null)
                     {
-                        return HttpStatusCode.BadRequest;
+                        // return HttpStatusCode.BadRequest;
                         throw new Exception("Check PV failed");
                     }
 
                     var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInput, getWipResponse));
                     if (!startWipResponse.Success || startWipResponse == null)
                     {
-                        return HttpStatusCode.BadRequest;
+                        // return HttpStatusCode.BadRequest;
                         throw new Exception("start Wip failed");
                     }
 
@@ -189,7 +191,7 @@ namespace KY_MES.Controllers
                         : $"{manufacturingArea.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Last()} {suffix}";
 
                     // Ir o ListDefect e verificar se retornam vazios ou nao
-                    foreach (var wip in wipids)
+                    foreach (var wip in wipIdInts)
                     {
                         var indictmentIds = await _mESService.GetIndictmentIds(wip.WipId);
 
@@ -209,14 +211,14 @@ namespace KY_MES.Controllers
                     var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInput, getWipResponse));
                     if (!okToTestResponse.OkToStart || okToTestResponse == null)
                     {
-                        return HttpStatusCode.BadRequest;
+                        // return HttpStatusCode.BadRequest;
                         throw new Exception("Check PV failed");
                     }
 
                     var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInput, getWipResponse));
                     if (!startWipResponse.Success || startWipResponse == null)
                     {
-                        return HttpStatusCode.BadRequest;
+                        // return HttpStatusCode.BadRequest;
                         throw new Exception("start Wip failed");
                     }
 
@@ -231,14 +233,31 @@ namespace KY_MES.Controllers
 
             if (completeWipResponse.Equals(null))
             {
-                return HttpStatusCode.BadRequest;
+                // return HttpStatusCode.BadRequest;
                 throw new Exception("complete wip failed");
             }
 
 
 
-            return HttpStatusCode.OK;
+            // return HttpStatusCode.OK;
+            return sPIInput;
         }
+
+
+
+        public async Task<SPIInputModel> SPISendWipDataLog(SPIInputModel sPIInput)
+        {
+
+            var username = Environment.GetEnvironmentVariable("Username");
+            var password = Environment.GetEnvironmentVariable("Password");
+
+            await _mESService.SignInAsync(utils.SignInRequest(username, password));
+
+            MapearDefeitosSPI(sPIInput);
+            return sPIInput;
+
+        }
+
         void MapearDefeitosSPI(SPIInputModel spi)
         {
             var defectMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -248,38 +267,38 @@ namespace KY_MES.Controllers
                 ["PASS"] = "GOOD",
                 ["BADMARK"] = "BADMARK",
 
-                ["WARNING_EXCESSIVE_VOLUME"]    = "Excess solder",
+                ["WARNING_EXCESSIVE_VOLUME"] = "Excess solder",
                 ["WARNING_INSUFFICIENT_VOLUME"] = "Insuff solder",
-                ["WARNING_POSITION"]            = "Solder Paste Offset",
-                ["WARNING_BRIDGING"]            = "Short/Bridging",
-                ["WARNING_GOLDTAB"]             = "GOLD SURFACE CONTACT AREA PROBLEM",
-                ["WARNING_SHAPE"]               = "Incorrect Shape",
-                ["WARNING_UPPER_HEIGHT"]        = "Solder Paste Upper Height",
-                ["WARNING_LOW_HEIGHT"]          = "Solder Paste Low Height",
-                ["WARNING_HIGH_AREA"]           = "High Area",
-                ["WARNING_LOW_AREA"]            = "Low Area",
-                ["WARNING_COPLANARITY"]         = "Coplanarity",
-                ["WARNING_SMEAR"]               = "Disturbed solder",
-                ["WARNING_FM"]                  = "SOLDER COVERAGE",
-                ["WARNING_SURFACE"]             = "SOLDER COVERAGE",
+                ["WARNING_POSITION"] = "Solder Paste Offset",
+                ["WARNING_BRIDGING"] = "Short/Bridging",
+                ["WARNING_GOLDTAB"] = "GOLD SURFACE CONTACT AREA PROBLEM",
+                ["WARNING_SHAPE"] = "Incorrect Shape",
+                ["WARNING_UPPER_HEIGHT"] = "Solder Paste Upper Height",
+                ["WARNING_LOW_HEIGHT"] = "Solder Paste Low Height",
+                ["WARNING_HIGH_AREA"] = "High Area",
+                ["WARNING_LOW_AREA"] = "Low Area",
+                ["WARNING_COPLANARITY"] = "Coplanarity",
+                ["WARNING_SMEAR"] = "Disturbed solder",
+                ["WARNING_FM"] = "SOLDER COVERAGE",
+                ["WARNING_SURFACE"] = "SOLDER COVERAGE",
 
-                ["NORMALIZE_HEIGHT"]            = "SOLDER COVERAGE",
-                ["ROI_NUMBER"]                  = "SOLDER COVERAGE",
+                ["NORMALIZE_HEIGHT"] = "SOLDER COVERAGE",
+                ["ROI_NUMBER"] = "SOLDER COVERAGE",
 
-                ["EXCESSIVE_VOLUME"]            = "Excess solder",
-                ["INSUFFICIENT_VOLUME"]         = "Insuff solder",
-                ["POSITION"]                    = "Solder Paste Offset",
-                ["BRIDGING"]                    = "Short/Bridging",
-                ["GOLDTAB"]                     = "GOLD SURFACE CONTACT AREA PROBLEM",
-                ["SHAPE"]                       = "Incorrect Shape",
-                ["UPPER_HEIGHT"]                = "Solder Paste Upper Height",
-                ["LOW_HEIGHT"]                  = "Solder Paste Low Height",
-                ["HIGH_AREA"]                   = "High Area",
-                ["LOW_AREA"]                    = "Low Area",
-                ["COPLANARITY"]                 = "Coplanarity",
-                ["SMEAR"]                       = "Disturbed solder",
-                ["FM"]                          = "SOLDER COVERAGE",
-                ["SURFACE"]                     = "SOLDER COVERAGE",
+                ["EXCESSIVE_VOLUME"] = "Excess solder",
+                ["INSUFFICIENT_VOLUME"] = "Insuff solder",
+                ["POSITION"] = "Solder Paste Offset",
+                ["BRIDGING"] = "Short/Bridging",
+                ["GOLDTAB"] = "GOLD SURFACE CONTACT AREA PROBLEM",
+                ["SHAPE"] = "Incorrect Shape",
+                ["UPPER_HEIGHT"] = "Solder Paste Upper Height",
+                ["LOW_HEIGHT"] = "Solder Paste Low Height",
+                ["HIGH_AREA"] = "High Area",
+                ["LOW_AREA"] = "Low Area",
+                ["COPLANARITY"] = "Coplanarity",
+                ["SMEAR"] = "Disturbed solder",
+                ["FM"] = "SOLDER COVERAGE",
+                ["SURFACE"] = "SOLDER COVERAGE",
 
                 ["REPAIRED"] = "REPAIRED",
                 ["NG"] = "NG",
@@ -323,5 +342,69 @@ namespace KY_MES.Controllers
                 }
             }
         }
+    }
+
+    public static class SpiDefectUtils
+    {
+        public static void KeepOneDefectPerBoard(SPIInputModel input)
+        {
+            if (input?.Board == null) return;
+
+            foreach (var b in input.Board)
+            {
+                if (b?.Defects == null || b.Defects.Count == 0) continue;
+
+                var first = b.Defects[0];
+                b.Defects = new List<KY_MES.Domain.V1.DTOs.InputModels.Defects> { first };
+            }
+        }
+
+        public static void DeduplicateDefectsByComp(SPIInputModel input)
+        {
+            if (input?.Board == null) return;
+
+            foreach (var panel in input.Board)
+            {
+                if (panel?.Defects == null || panel.Defects.Count == 0) continue;
+
+                panel.Defects = panel.Defects
+                    .GroupBy(d => (d.Comp ?? string.Empty).Trim(), StringComparer.OrdinalIgnoreCase)
+                    .Select(g => g.First())
+                    .ToList();
+            }
+        }
+
+
+        public static void KeepOneDefectPerCRDPerBoard(SPIInputModel input)
+        {
+            if (input?.Board == null) return;
+
+            foreach (var b in input.Board)
+            {
+                if (b?.Defects == null || b.Defects.Count == 0) continue;
+
+                b.Defects = b.Defects
+                    .GroupBy(d => (d.Comp ?? string.Empty).Trim(), StringComparer.OrdinalIgnoreCase)
+                    .Select(g => g.First())
+                    .ToList();
+            }
+        }
+
+        public static void KeepOneDefectPerCRDIgnoringEmptyComp(SPIInputModel input)
+        {
+            if (input?.Board == null) return;
+
+            foreach (var b in input.Board)
+            {
+                if (b?.Defects == null || b.Defects.Count == 0) continue;
+
+                b.Defects = b.Defects
+                    .Where(d => !string.IsNullOrWhiteSpace(d.Comp))
+                    .GroupBy(d => d.Comp.Trim(), StringComparer.OrdinalIgnoreCase)
+                    .Select(g => g.First())
+                    .ToList();
+            }
+        }
+
     }
 }

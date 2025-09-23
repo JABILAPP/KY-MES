@@ -23,12 +23,16 @@ namespace KY_MES.Controllers
             try
             {
                 var response = await _application.SPISendWipData(sPIInput);
-                return Ok(new
-                {
-                    Result = "OK",
-                    Success = true,
-                    Code = 200
-                });
+
+                // return Ok(new
+                // {
+                //     Result = "OK",
+                //     Success = true,
+                //     Code = 200
+                // });
+
+
+                return Ok(response);
 
             }
             catch (Exception ex)
