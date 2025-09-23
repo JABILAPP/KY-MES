@@ -21,7 +21,7 @@ namespace KY_MES.Controllers
             utils = new Utils();
         }
 
-        public async Task<SPIInputModel> SPISendWipData(SPIInputModel sPIInput)
+        public async Task<HttpStatusCode> SPISendWipData(SPIInputModel sPIInput)
         {
 
             var username = Environment.GetEnvironmentVariable("Username");
@@ -40,7 +40,7 @@ namespace KY_MES.Controllers
 
             if (getWipResponse.WipId == null)
             {
-                // return HttpStatusCode.BadRequest;
+                 return HttpStatusCode.BadRequest;
                 throw new Exception("WipId is null");
             }
 
@@ -88,14 +88,14 @@ namespace KY_MES.Controllers
                     var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInput, getWipResponse));
                     if (!okToTestResponse.OkToStart || okToTestResponse == null)
                     {
-                        // return HttpStatusCode.BadRequest;
+                         return HttpStatusCode.BadRequest;
                         throw new Exception("Check PV failed");
                     }
 
                     var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInput, getWipResponse));
                     if (!startWipResponse.Success || startWipResponse == null)
                     {
-                        // return HttpStatusCode.BadRequest;
+                         return HttpStatusCode.BadRequest;
                         throw new Exception("start Wip failed");
                     }
 
@@ -107,7 +107,7 @@ namespace KY_MES.Controllers
                         try
                         {
                             completeWipResponse = await utils.AddDefectToCompleteWip(
-                                _mESService.AddDefectAsync( 
+                                _mESService.AddDefectAsync(
                                     utils.ToAddDefect(sPIInput, getWipResponse),
                                     getWipResponse.WipId
                                 )
@@ -164,14 +164,14 @@ namespace KY_MES.Controllers
                     var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInput, getWipResponse));
                     if (!okToTestResponse.OkToStart || okToTestResponse == null)
                     {
-                        // return HttpStatusCode.BadRequest;
+                         return HttpStatusCode.BadRequest;
                         throw new Exception("Check PV failed");
                     }
 
                     var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInput, getWipResponse));
                     if (!startWipResponse.Success || startWipResponse == null)
                     {
-                        // return HttpStatusCode.BadRequest;
+                         return HttpStatusCode.BadRequest;
                         throw new Exception("start Wip failed");
                     }
 
@@ -211,14 +211,14 @@ namespace KY_MES.Controllers
                     var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInput, getWipResponse));
                     if (!okToTestResponse.OkToStart || okToTestResponse == null)
                     {
-                        // return HttpStatusCode.BadRequest;
+                         return HttpStatusCode.BadRequest;
                         throw new Exception("Check PV failed");
                     }
 
                     var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInput, getWipResponse));
                     if (!startWipResponse.Success || startWipResponse == null)
                     {
-                        // return HttpStatusCode.BadRequest;
+                         return HttpStatusCode.BadRequest;
                         throw new Exception("start Wip failed");
                     }
 
@@ -233,14 +233,14 @@ namespace KY_MES.Controllers
 
             if (completeWipResponse.Equals(null))
             {
-                // return HttpStatusCode.BadRequest;
+                 return HttpStatusCode.BadRequest;
                 throw new Exception("complete wip failed");
             }
 
 
 
-            // return HttpStatusCode.OK;
-            return sPIInput;
+             return HttpStatusCode.OK;
+            //return sPIInput;
         }
 
 
@@ -332,79 +332,87 @@ namespace KY_MES.Controllers
 
                 foreach (var defect in board.Defects)
                 {
-                    var originalName = defect.Defect;
-                    var key = originalName?.Trim();
-                    if (key != null && defectMap.TryGetValue(key, out var mapped))
+                    var original = defect.Defect;
+                    if (string.IsNullOrWhiteSpace(original)) continue;
+
+                    var key = original.Trim();
+                    // tenta mapear; se não achar, mantém o original
+                    if (defectMap.TryGetValue(key, out var mapped))
                     {
                         defect.Defect = mapped;
                         defect.Review = mapped;
+                    }
+                    else
+                    {
+                        defect.Defect = key;   // mantém o valor passado (normalizado)
+                        defect.Review = key;   // idem
                     }
                 }
             }
         }
     }
 
-    public static class SpiDefectUtils
-    {
-        public static void KeepOneDefectPerBoard(SPIInputModel input)
+        public static class SpiDefectUtils
         {
-            if (input?.Board == null) return;
-
-            foreach (var b in input.Board)
+            public static void KeepOneDefectPerBoard(SPIInputModel input)
             {
-                if (b?.Defects == null || b.Defects.Count == 0) continue;
+                if (input?.Board == null) return;
 
-                var first = b.Defects[0];
-                b.Defects = new List<KY_MES.Domain.V1.DTOs.InputModels.Defects> { first };
+                foreach (var b in input.Board)
+                {
+                    if (b?.Defects == null || b.Defects.Count == 0) continue;
+
+                    var first = b.Defects[0];
+                    b.Defects = new List<KY_MES.Domain.V1.DTOs.InputModels.Defects> { first };
+                }
             }
-        }
 
-        public static void DeduplicateDefectsByComp(SPIInputModel input)
-        {
-            if (input?.Board == null) return;
-
-            foreach (var panel in input.Board)
+            public static void DeduplicateDefectsByComp(SPIInputModel input)
             {
-                if (panel?.Defects == null || panel.Defects.Count == 0) continue;
+                if (input?.Board == null) return;
 
-                panel.Defects = panel.Defects
-                    .GroupBy(d => (d.Comp ?? string.Empty).Trim(), StringComparer.OrdinalIgnoreCase)
-                    .Select(g => g.First())
-                    .ToList();
+                foreach (var panel in input.Board)
+                {
+                    if (panel?.Defects == null || panel.Defects.Count == 0) continue;
+
+                    panel.Defects = panel.Defects
+                        .GroupBy(d => (d.Comp ?? string.Empty).Trim(), StringComparer.OrdinalIgnoreCase)
+                        .Select(g => g.First())
+                        .ToList();
+                }
             }
-        }
 
 
-        public static void KeepOneDefectPerCRDPerBoard(SPIInputModel input)
-        {
-            if (input?.Board == null) return;
-
-            foreach (var b in input.Board)
+            public static void KeepOneDefectPerCRDPerBoard(SPIInputModel input)
             {
-                if (b?.Defects == null || b.Defects.Count == 0) continue;
+                if (input?.Board == null) return;
 
-                b.Defects = b.Defects
-                    .GroupBy(d => (d.Comp ?? string.Empty).Trim(), StringComparer.OrdinalIgnoreCase)
-                    .Select(g => g.First())
-                    .ToList();
+                foreach (var b in input.Board)
+                {
+                    if (b?.Defects == null || b.Defects.Count == 0) continue;
+
+                    b.Defects = b.Defects
+                        .GroupBy(d => (d.Comp ?? string.Empty).Trim(), StringComparer.OrdinalIgnoreCase)
+                        .Select(g => g.First())
+                        .ToList();
+                }
             }
-        }
 
-        public static void KeepOneDefectPerCRDIgnoringEmptyComp(SPIInputModel input)
-        {
-            if (input?.Board == null) return;
-
-            foreach (var b in input.Board)
+            public static void KeepOneDefectPerCRDIgnoringEmptyComp(SPIInputModel input)
             {
-                if (b?.Defects == null || b.Defects.Count == 0) continue;
+                if (input?.Board == null) return;
 
-                b.Defects = b.Defects
-                    .Where(d => !string.IsNullOrWhiteSpace(d.Comp))
-                    .GroupBy(d => d.Comp.Trim(), StringComparer.OrdinalIgnoreCase)
-                    .Select(g => g.First())
-                    .ToList();
+                foreach (var b in input.Board)
+                {
+                    if (b?.Defects == null || b.Defects.Count == 0) continue;
+
+                    b.Defects = b.Defects
+                        .Where(d => !string.IsNullOrWhiteSpace(d.Comp))
+                        .GroupBy(d => d.Comp.Trim(), StringComparer.OrdinalIgnoreCase)
+                        .Select(g => g.First())
+                        .ToList();
+                }
             }
+        
         }
-
-    }
 }
