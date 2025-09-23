@@ -14,7 +14,7 @@ namespace KY_MES.Controllers
         private readonly Utils utils;
 
 
-        
+
         public KY_MESApplication(IMESService mESService)
         {
             _mESService = mESService;
@@ -30,6 +30,9 @@ namespace KY_MES.Controllers
             await _mESService.SignInAsync(utils.SignInRequest(username, password));
 
             var operationhistory = await _mESService.GetOperationInfoAsync(sPIInput.Inspection.Barcode);
+
+            MapearDefeitosSPI(sPIInput);
+
 
             var getWipResponse = await _mESService.GetWipIdBySerialNumberAsync(utils.SpiToGetWip(sPIInput));
 
@@ -59,7 +62,7 @@ namespace KY_MES.Controllers
                     string suffix = "- Repair 01";
 
                     string resourceMachineSPI = string.IsNullOrWhiteSpace(manufacturingArea)
-                        ? suffix 
+                        ? suffix
                         : $"{manufacturingArea.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Last()} {suffix}";
 
                     // Ir o ListDefect e verificar se retornam vazios ou nao
@@ -115,24 +118,24 @@ namespace KY_MES.Controllers
                             {
                                 throw new Exception($"Failed to add defect after {maxRetries} retries. Message: {ex.Message}");
                             }
-                            await Task.Delay(500); 
+                            await Task.Delay(500);
                         }
                     }
                     while (completeWipResponse == null && retryCount < maxRetries);
 
                 }
-                
+
             }
             else
             {
 
                 if (sPIInput.Inspection.Machine.StartsWith("SS-DL"))
-                {   
+                {
                     string? manufacturingArea = operationhistory.ManufacturingArea;
                     string suffix = "- Repair 01";
 
                     string resourceMachineSPI = string.IsNullOrWhiteSpace(manufacturingArea)
-                        ? suffix 
+                        ? suffix
                         : $"{manufacturingArea.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Last()} {suffix}";
 
 
@@ -182,7 +185,7 @@ namespace KY_MES.Controllers
                     string suffix = "- Repair 01";
 
                     string resourceMachineAOI = string.IsNullOrWhiteSpace(manufacturingArea)
-                        ? suffix 
+                        ? suffix
                         : $"{manufacturingArea.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Last()} {suffix}";
 
                     // Ir o ListDefect e verificar se retornam vazios ou nao
@@ -221,9 +224,9 @@ namespace KY_MES.Controllers
                     completeWipResponse = await _mESService.CompleteWipPassAsync(
                         utils.ToCompleteWipPass(sPIInput, getWipResponse), getWipResponse.WipId.ToString()
                     );
-                    
+
                 }
-                
+
             }
 
             if (completeWipResponse.Equals(null))
@@ -233,8 +236,92 @@ namespace KY_MES.Controllers
             }
 
 
-           
+
             return HttpStatusCode.OK;
+        }
+        void MapearDefeitosSPI(SPIInputModel spi)
+        {
+            var defectMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["UNUSED"] = "UNUSED",
+                ["GOOD"] = "GOOD",
+                ["PASS"] = "GOOD",
+                ["BADMARK"] = "BADMARK",
+
+                ["WARNING_EXCESSIVE_VOLUME"]    = "Excess solder",
+                ["WARNING_INSUFFICIENT_VOLUME"] = "Insuff solder",
+                ["WARNING_POSITION"]            = "Solder Paste Offset",
+                ["WARNING_BRIDGING"]            = "Short/Bridging",
+                ["WARNING_GOLDTAB"]             = "GOLD SURFACE CONTACT AREA PROBLEM",
+                ["WARNING_SHAPE"]               = "Incorrect Shape",
+                ["WARNING_UPPER_HEIGHT"]        = "Solder Paste Upper Height",
+                ["WARNING_LOW_HEIGHT"]          = "Solder Paste Low Height",
+                ["WARNING_HIGH_AREA"]           = "High Area",
+                ["WARNING_LOW_AREA"]            = "Low Area",
+                ["WARNING_COPLANARITY"]         = "Coplanarity",
+                ["WARNING_SMEAR"]               = "Disturbed solder",
+                ["WARNING_FM"]                  = "SOLDER COVERAGE",
+                ["WARNING_SURFACE"]             = "SOLDER COVERAGE",
+
+                ["NORMALIZE_HEIGHT"]            = "SOLDER COVERAGE",
+                ["ROI_NUMBER"]                  = "SOLDER COVERAGE",
+
+                ["EXCESSIVE_VOLUME"]            = "Excess solder",
+                ["INSUFFICIENT_VOLUME"]         = "Insuff solder",
+                ["POSITION"]                    = "Solder Paste Offset",
+                ["BRIDGING"]                    = "Short/Bridging",
+                ["GOLDTAB"]                     = "GOLD SURFACE CONTACT AREA PROBLEM",
+                ["SHAPE"]                       = "Incorrect Shape",
+                ["UPPER_HEIGHT"]                = "Solder Paste Upper Height",
+                ["LOW_HEIGHT"]                  = "Solder Paste Low Height",
+                ["HIGH_AREA"]                   = "High Area",
+                ["LOW_AREA"]                    = "Low Area",
+                ["COPLANARITY"]                 = "Coplanarity",
+                ["SMEAR"]                       = "Disturbed solder",
+                ["FM"]                          = "SOLDER COVERAGE",
+                ["SURFACE"]                     = "SOLDER COVERAGE",
+
+                ["REPAIRED"] = "REPAIRED",
+                ["NG"] = "NG",
+                ["UNDEFINED"] = "UNDEFINED",
+                ["PADOVERHANG"] = "Misonserted/Misaligned",
+                ["DIMENSION"] = "Wrong Part",
+                ["MISSING"] = "Missing",
+                ["COMPONENT_SHIFT"] = "Skewed",
+                ["UPSIDEDOWN"] = "Upside down",
+                ["SOLDER_JOINT"] = "Insuff solder",
+                ["LIFTED_LEAD"] = "Lifted lead",
+                ["LIFTED_BODY"] = "Coplanarity",
+                ["BILL_BOARDING"] = "Billboarding",
+                ["TOMBSTONE"] = "Tombstone",
+                ["BODY_DIMENSION"] = "Wrong Part",
+                ["POLARITY"] = "Wrong polarit/reversed",
+                ["OCR_OCV"] = "OCV Fail",
+                ["ABSENCE"] = "Extra part",
+                ["OVERHANG"] = "Misonserted/Misaligned",
+                ["MISSING_LEAD"] = "Missing Lead",
+                ["PARTICLE"] = "PARTICLE",
+                ["FOREIGNMATERIAL_BODY"] = "Foreign material / Particulate matter",
+                ["FOREIGNMATERIAL_LEAD"] = "Foreign material / Particulate matter",
+            };
+
+            if (spi?.Board == null) return;
+
+            foreach (var board in spi.Board)
+            {
+                if (board?.Defects == null) continue;
+
+                foreach (var defect in board.Defects)
+                {
+                    var originalName = defect.Defect;
+                    var key = originalName?.Trim();
+                    if (key != null && defectMap.TryGetValue(key, out var mapped))
+                    {
+                        defect.Defect = mapped;
+                        defect.Review = mapped;
+                    }
+                }
+            }
         }
     }
 }

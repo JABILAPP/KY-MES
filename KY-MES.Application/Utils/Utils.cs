@@ -98,107 +98,37 @@ namespace KY_MES.Application.Utils
 
         public AddDefectRequestModel ToAddDefect(SPIInputModel spi, GetWipIdBySerialNumberResponseModels getWip)
         {
-            //
-            var defectMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                // Existentes
-                ["UNUSED"] = "UNUSED",
-                ["GOOD"] = "GOOD",
-                ["PASS"] = "GOOD",
-                ["BADMARK"] = "BADMARK",
-
-                ["WARNING_EXCESSIVE_VOLUME"]   = "Excess solder",
-                ["WARNING_INSUFFICIENT_VOLUME"] = "Insuff solder",
-                ["WARNING_POSITION"]           = "Solder Paste Offset",
-                ["WARNING_BRIDGING"]           = "Short/Bridging",
-                ["WARNING_GOLDTAB"]            = "GOLD SURFACE CONTACT AREA PROBLEM",
-                ["WARNING_SHAPE"]              = "Incorrect Shape",
-                ["WARNING_UPPER_HEIGHT"]       = "Solder Paste Upper Height",
-                ["WARNING_LOW_HEIGHT"]         = "Solder Paste Low Height",
-                ["WARNING_HIGH_AREA"]          = "High Area",
-                ["WARNING_LOW_AREA"]           = "Low Area",
-                ["WARNING_COPLANARITY"]        = "Coplanarity",
-                ["WARNING_SMEAR"]              = "Disturbed solder",
-                ["WARNING_FM"]                 = "SOLDER COVERAGE",
-                ["WARNING_SURFACE"]            = "SOLDER COVERAGE",
-
-                ["NORMALIZE_HEIGHT"]           = "SOLDER COVERAGE",
-                ["ROI_NUMBER"]                 = "SOLDER COVERAGE",
-
-                ["EXCESSIVE_VOLUME"]           = "Excess solder",
-                ["INSUFFICIENT_VOLUME"]        = "Insuff solder",
-                ["POSITION"]                   = "Solder Paste Offset",
-                ["BRIDGING"]                   = "Short/Bridging",
-                ["GOLDTAB"]                    = "GOLD SURFACE CONTACT AREA PROBLEM",
-                ["SHAPE"]                      = "Incorrect Shape",
-                ["UPPER_HEIGHT"]               = "Solder Paste Upper Height",
-                ["LOW_HEIGHT"]                 = "Solder Paste Low Height",
-                ["HIGH_AREA"]                  = "High Area",
-                ["LOW_AREA"]                   = "Low Area",
-                ["COPLANARITY"]                = "Coplanarity",
-                ["SMEAR"]                      = "Disturbed solder",
-                ["FM"]                         = "SOLDER COVERAGE",
-                ["SURFACE"]                    = "SOLDER COVERAGE",
-
-                // Novos do XML (apenas os que não conflitam com os anteriores)
-                ["REPAIRED"] = "REPAIRED",
-                ["NG"] = "NG",
-                ["UNDEFINED"] = "UNDEFINED",
-                ["PADOVERHANG"] = "Misonserted/Misaligned",
-                ["DIMENSION"] = "Wrong Part",
-                ["MISSING"] = "Missing",
-                ["COMPONENT_SHIFT"] = "Skewed",
-                ["UPSIDEDOWN"] = "Upside down",
-                ["SOLDER_JOINT"] = "Insuff solder",
-                ["LIFTED_LEAD"] = "Lifted lead",
-                ["LIFTED_BODY"] = "Coplanarity",
-                ["BILL_BOARDING"] = "Billboarding",
-                ["TOMBSTONE"] = "Tombstone",
-                ["BODY_DIMENSION"] = "Wrong Part",
-                ["POLARITY"] = "Wrong polarit/reversed",
-                ["OCR_OCV"] = "OCV Fail",
-                ["ABSENCE"] = "Extra part",
-                ["OVERHANG"] = "Misonserted/Misaligned",
-                ["MISSING_LEAD"] = "Missing Lead",
-                ["PARTICLE"] = "PARTICLE",
-                ["FOREIGNMATERIAL_BODY"] = "Foreign material / Particulate matter",
-                ["FOREIGNMATERIAL_LEAD"] = "Foreign material / Particulate matter",
-            };
-
             List<PanelDefect> panelDefects = new List<PanelDefect>();
 
             foreach (var board in spi.Board)
             {
-                var defectsByBoard = new List<Domain.V1.DTOs.OutputModels.Defect>();
-
-                if (board.Result != null && board.Result.Contains("NG", StringComparison.OrdinalIgnoreCase))
+                List<Domain.V1.DTOs.OutputModels.Defect> defectsByBoard = new List<Domain.V1.DTOs.OutputModels.Defect>();
+                if (board.Result.Contains("NG"))
                 {
                     foreach (var defect in board.Defects)
                     {
-                        // se existir no dicionário, troca pelo valor mapeado
-                        var originalName = defect.Defect ?? string.Empty;
-                        var mappedName = defectMap.TryGetValue(originalName, out var rightValue)
-                                        ? rightValue
-                                        : originalName;
-
                         defectsByBoard.Add(new Domain.V1.DTOs.OutputModels.Defect
                         {
+                            //Original
+                            //defectId = "",
+                            //defectName = defect.Defect,
+                            //defectCRD = defect.Comp
                             defectId = "",
-                            defectName = mappedName,
-                            defectCRD = defect.Comp
+                            defectName = defect.Defect,
+                            defectCRD =  defect.Comp,
+                            defectComment = defect.Comp
                         });
                     }
-
-                    var matchingWipId =
-                        (from panelWips in getWip.Panel.PanelWips
-                        where board.Array == panelWips.PanelPosition
-                        select panelWips.WipId).FirstOrDefault().GetValueOrDefault();
+                    var matchingWipId = (from panelWips
+                                         in getWip.Panel.PanelWips
+                                         where board.Array == panelWips.PanelPosition
+                                         select panelWips.WipId).FirstOrDefault().GetValueOrDefault();
 
                     panelDefects.Add(new PanelDefect
                     {
                         wipId = matchingWipId,
                         defects = defectsByBoard,
-                        hasValidNumericField = true
+                        hasValidNumericField = true // Assuming no numeric fields are present
                     });
                 }
             }
@@ -207,7 +137,7 @@ namespace KY_MES.Application.Utils
             {
                 wipId = getWip.WipId,
                 defects = [],
-                hasValidNumericField = true,
+                hasValidNumericField = true, // Assuming no numeric fields are present
                 panelDefects = panelDefects
             };
         }
@@ -257,6 +187,9 @@ namespace KY_MES.Application.Utils
                 SerialNumber = spi.Inspection.Barcode
             };
         }
+        
+
+        
 
 
 
