@@ -5,6 +5,7 @@ using KY_MES.Domain.V1.Interfaces;
 using KY_MES.Services.DomainServices.Interfaces;
 using System.Collections.Concurrent;
 using System.Net;
+using System.Text.Json;
 
 namespace KY_MES.Controllers
 {
@@ -12,8 +13,6 @@ namespace KY_MES.Controllers
     {
         private readonly IMESService _mESService;
         private readonly Utils utils;
-
-
 
         public KY_MESApplication(IMESService mESService)
         {
@@ -23,7 +22,6 @@ namespace KY_MES.Controllers
 
         public async Task<SPIInputModel> SPISendWipData(SPIInputModel sPIInput)
         {
-
             var username = Environment.GetEnvironmentVariable("Username");
             var password = Environment.GetEnvironmentVariable("Password");
 
@@ -31,19 +29,15 @@ namespace KY_MES.Controllers
 
             var operationhistory = await _mESService.GetOperationInfoAsync(sPIInput.Inspection.Barcode);
 
+            // Deduplicação no objeto original (regra atual)
             SpiDefectUtils.KeepOneDefectPerCRDIgnoringEmptyComp(sPIInput);
 
-            MapearDefeitosSPI(sPIInput);
-
+            // Cria um clone remapeado (NÃO altera sPIInput)
+            var sPIInputRemapped = await MapearDefeitosSPICriandoNovo(sPIInput);
 
             var getWipResponse = await _mESService.GetWipIdBySerialNumberAsync(utils.SpiToGetWip(sPIInput));
-
             if (getWipResponse.WipId == null)
-            {
-                // return HttpStatusCode.BadRequest;
                 throw new Exception("WipId is null");
-            }
-
 
             // 1. Capturar o wip ID do produto e serial
             var serialNumber = sPIInput.Inspection.Barcode;
@@ -52,12 +46,12 @@ namespace KY_MES.Controllers
 
             CompleteWipResponseModel? completeWipResponse = null;
 
-            Task.Delay(2000);
+            await Task.Delay(2000);
 
-            if (sPIInput.Inspection.Result.Contains("NG"))
+            if (sPIInputRemapped.Inspection.Result.Contains("NG"))
             {
                 // DIFERENCIAÇÃO DE INPUT PARA OS LOGS DE SPI 
-                if (sPIInput.Inspection.Machine.StartsWith("SS-DL"))
+                if (sPIInputRemapped.Inspection.Machine.StartsWith("SS-DL"))
                 {
                     // RESOURCE MACHINE PARA SPI 
                     string? manufacturingArea = operationhistory.ManufacturingArea;
@@ -85,19 +79,13 @@ namespace KY_MES.Controllers
                         }
                     }
 
-                    var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInput, getWipResponse));
-                    if (!okToTestResponse.OkToStart || okToTestResponse == null)
-                    {
-                        // return HttpStatusCode.BadRequest;
+                    var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInputRemapped, getWipResponse));
+                    if (okToTestResponse == null || !okToTestResponse.OkToStart)
                         throw new Exception("Check PV failed");
-                    }
 
-                    var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInput, getWipResponse));
-                    if (!startWipResponse.Success || startWipResponse == null)
-                    {
-                        // return HttpStatusCode.BadRequest;
+                    var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInputRemapped, getWipResponse));
+                    if (startWipResponse == null || !startWipResponse.Success)
                         throw new Exception("start Wip failed");
-                    }
 
                     int retryCount = 0;
                     int maxRetries = 10;
@@ -107,8 +95,8 @@ namespace KY_MES.Controllers
                         try
                         {
                             completeWipResponse = await utils.AddDefectToCompleteWip(
-                                _mESService.AddDefectAsync( 
-                                    utils.ToAddDefect(sPIInput, getWipResponse),
+                                _mESService.AddDefectAsync(
+                                    utils.ToAddDefect(sPIInputRemapped, getWipResponse),
                                     getWipResponse.WipId
                                 )
                             );
@@ -124,14 +112,11 @@ namespace KY_MES.Controllers
                         }
                     }
                     while (completeWipResponse == null && retryCount < maxRetries);
-
                 }
-
             }
             else
             {
-
-                if (sPIInput.Inspection.Machine.StartsWith("SS-DL"))
+                if (sPIInputRemapped.Inspection.Machine.StartsWith("SS-DL"))
                 {
                     string? manufacturingArea = operationhistory.ManufacturingArea;
                     string suffix = "- Repair 01";
@@ -139,7 +124,6 @@ namespace KY_MES.Controllers
                     string resourceMachineSPI = string.IsNullOrWhiteSpace(manufacturingArea)
                         ? suffix
                         : $"{manufacturingArea.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Last()} {suffix}";
-
 
                     // Ir o ListDefect e verificar se retornam vazios ou nao
                     foreach (var wip in wipIdInts)
@@ -161,25 +145,17 @@ namespace KY_MES.Controllers
                         }
                     }
 
-                    var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInput, getWipResponse));
-                    if (!okToTestResponse.OkToStart || okToTestResponse == null)
-                    {
-                        // return HttpStatusCode.BadRequest;
+                    var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInputRemapped, getWipResponse));
+                    if (okToTestResponse == null || !okToTestResponse.OkToStart)
                         throw new Exception("Check PV failed");
-                    }
 
-                    var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInput, getWipResponse));
-                    if (!startWipResponse.Success || startWipResponse == null)
-                    {
-                        // return HttpStatusCode.BadRequest;
+                    var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInputRemapped, getWipResponse));
+                    if (startWipResponse == null || !startWipResponse.Success)
                         throw new Exception("start Wip failed");
-                    }
-
 
                     completeWipResponse = await _mESService.CompleteWipPassAsync(
-                        utils.ToCompleteWipPass(sPIInput, getWipResponse), getWipResponse.WipId.ToString()
+                        utils.ToCompleteWipPass(sPIInputRemapped, getWipResponse), getWipResponse.WipId.ToString()
                     );
-
                 }
                 else
                 {
@@ -208,59 +184,101 @@ namespace KY_MES.Controllers
                         }
                     }
 
-                    var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInput, getWipResponse));
-                    if (!okToTestResponse.OkToStart || okToTestResponse == null)
-                    {
-                        // return HttpStatusCode.BadRequest;
+                    var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInputRemapped, getWipResponse));
+                    if (okToTestResponse == null || !okToTestResponse.OkToStart)
                         throw new Exception("Check PV failed");
-                    }
 
-                    var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInput, getWipResponse));
-                    if (!startWipResponse.Success || startWipResponse == null)
-                    {
-                        // return HttpStatusCode.BadRequest;
+                    var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInputRemapped, getWipResponse));
+                    if (startWipResponse == null || !startWipResponse.Success)
                         throw new Exception("start Wip failed");
-                    }
-
 
                     completeWipResponse = await _mESService.CompleteWipPassAsync(
-                        utils.ToCompleteWipPass(sPIInput, getWipResponse), getWipResponse.WipId.ToString()
+                        utils.ToCompleteWipPass(sPIInputRemapped, getWipResponse), getWipResponse.WipId.ToString()
                     );
-
                 }
-
             }
 
-            if (completeWipResponse.Equals(null))
-            {
-                // return HttpStatusCode.BadRequest;
+            if (completeWipResponse == null)
                 throw new Exception("complete wip failed");
-            }
 
-
-
-            // return HttpStatusCode.OK;
-            return sPIInput;
+            return sPIInputRemapped;
         }
-
-
 
         public async Task<SPIInputModel> SPISendWipDataLog(SPIInputModel sPIInput)
         {
-
             var username = Environment.GetEnvironmentVariable("Username");
             var password = Environment.GetEnvironmentVariable("Password");
 
             await _mESService.SignInAsync(utils.SignInRequest(username, password));
 
-            MapearDefeitosSPI(sPIInput);
-            return sPIInput;
-
+            // Retornar clone remapeado
+            var sPIInputRemapped = await MapearDefeitosSPICriandoNovo(sPIInput);
+            return sPIInputRemapped;
         }
 
+        // Método antigo que altera in-place (mantido caso ainda queira usar em algum lugar)
         void MapearDefeitosSPI(SPIInputModel spi)
         {
-            var defectMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            var defectMap = ObterDefectMap();
+
+            if (spi?.Board == null) return;
+
+            foreach (var board in spi.Board)
+            {
+                if (board?.Defects == null) continue;
+
+                foreach (var defect in board.Defects)
+                {
+                    var originalName = defect.Defect;
+                    var key = originalName?.Trim();
+                    if (key != null && defectMap.TryGetValue(key, out var mapped))
+                    {
+                        defect.Defect = mapped;
+                        defect.Review = mapped;
+                    }
+                }
+            }
+        }
+
+        private static readonly SemaphoreSlim NormalizeLock = new SemaphoreSlim(1, 1);
+
+        // Nova versão: cria e retorna um novo objeto com defeitos mapeados
+        private async Task <SPIInputModel> MapearDefeitosSPICriandoNovo(SPIInputModel spi, CancellationToken ct = default)
+        {
+            await NormalizeLock.WaitAsync(ct);
+            try
+            {
+                var clone = DeepClone(spi);
+                if (clone?.Board == null) return clone;
+
+                var defectMap = ObterDefectMap();
+
+                foreach (var board in clone.Board)
+                {
+                    if (board?.Defects == null) continue;
+
+                    foreach (var defect in board.Defects)
+                    {
+                        var key = defect?.Defect?.Trim();
+                        if (key != null && defectMap.TryGetValue(key, out var mapped))
+                        {
+                            defect.Defect = mapped;
+                            defect.Review = mapped;
+                        }
+                    }
+                }
+
+                return clone;
+            }
+            finally
+            {
+                NormalizeLock.Release();
+            }
+        }
+
+        private static Dictionary<string, string> ObterDefectMap()
+        {
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 ["UNUSED"] = "UNUSED",
                 ["GOOD"] = "GOOD",
@@ -323,24 +341,21 @@ namespace KY_MES.Controllers
                 ["FOREIGNMATERIAL_BODY"] = "Foreign material / Particulate matter",
                 ["FOREIGNMATERIAL_LEAD"] = "Foreign material / Particulate matter",
             };
+        }
 
-            if (spi?.Board == null) return;
-
-            foreach (var board in spi.Board)
-            {
-                if (board?.Defects == null) continue;
-
-                foreach (var defect in board.Defects)
+        private static T DeepClone<T>(T obj)
+        {
+            if (obj == null) return default!;
+            var json = JsonSerializer.Serialize(
+                obj,
+                new JsonSerializerOptions
                 {
-                    var originalName = defect.Defect;
-                    var key = originalName?.Trim();
-                    if (key != null && defectMap.TryGetValue(key, out var mapped))
-                    {
-                        defect.Defect = mapped;
-                        defect.Review = mapped;
-                    }
+                    PropertyNameCaseInsensitive = true,
+                    // Se houver referências cíclicas entre objetos do modelo, descomente:
+                    // ReferenceHandler = ReferenceHandler.Preserve
                 }
-            }
+            );
+            return JsonSerializer.Deserialize<T>(json)!;
         }
     }
 
@@ -374,7 +389,6 @@ namespace KY_MES.Controllers
             }
         }
 
-
         public static void KeepOneDefectPerCRDPerBoard(SPIInputModel input)
         {
             if (input?.Board == null) return;
@@ -405,6 +419,5 @@ namespace KY_MES.Controllers
                     .ToList();
             }
         }
-
     }
 }

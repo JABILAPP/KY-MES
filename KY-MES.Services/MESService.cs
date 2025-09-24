@@ -157,7 +157,9 @@ namespace KY_MES.Services
         {
             try
             {
-                // Remover duplicatas dentro de cada panelDefect
+                var addDefectUrl = $"{MesBaseUrl}api-external-api/api/Wips/{WipId}/AddDefects";
+
+                // 1) Primeira tentativa: dedup por defectCRD + defectName (mantém nomes originais)
                 if (addDefectRequestModel?.panelDefects != null)
                 {
                     foreach (var panel in addDefectRequestModel.panelDefects)
@@ -167,8 +169,8 @@ namespace KY_MES.Services
                             panel.defects = panel.defects
                                 .GroupBy(d => new
                                 {
-                                    Comp = (d.defectCRD ?? "").Trim(),
-                                    Defect = (d.defectName ?? "").Trim(),
+                                    Comp = (d.defectCRD ?? string.Empty).Trim(),
+                                    Defect = (d.defectName ?? string.Empty).Trim(),
                                 })
                                 .Select(g => g.First())
                                 .ToList();
@@ -176,14 +178,51 @@ namespace KY_MES.Services
                     }
                 }
 
-                var addDefectUrl = $"{MesBaseUrl}api-external-api/api/Wips/{WipId}/AddDefects";
-
                 var jsonContent = JsonConvert.SerializeObject(addDefectRequestModel);
                 var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
 
                 var response = await _client.PostAsync(addDefectUrl, content);
-                
-                response.EnsureSuccessStatusCode();
+
+                // 2) Segunda tentativa trocando o crd para HALBIM
+                if (response.StatusCode == HttpStatusCode.BadRequest)
+                {
+
+                    if (addDefectRequestModel?.panelDefects != null)
+                    {
+                        foreach (var panel in addDefectRequestModel.panelDefects)
+                        {
+                            if (panel?.defects == null) continue;
+
+                            foreach (var d in panel.defects)
+                            {
+                                if (d == null) continue;
+                                d.defectCRD = "HALBIM";
+                                d.defectComment = "HALBIM";
+                            }
+
+                            panel.defects = panel.defects
+                                .GroupBy(d => new
+                                {
+                                    Comp = (d.defectCRD ?? string.Empty).Trim(),
+                                    Defect = (d.defectName ?? string.Empty).Trim(),
+                                })
+                                .Select(g => g.First())
+                                .ToList();
+                        }
+                    }
+
+                    jsonContent = JsonConvert.SerializeObject(addDefectRequestModel);
+                    content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
+
+
+                    response = await _client.PostAsync(addDefectUrl, content);
+                }
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var body = await response.Content.ReadAsStringAsync();
+                    throw new Exception($"Erro ao executar AddDefect. Status: {(int)response.StatusCode} {response.ReasonPhrase}. Body: {body}");
+                }
 
                 await CompleteWipIoTAsync(WipId);
 
@@ -191,11 +230,9 @@ namespace KY_MES.Services
             }
             catch (Exception ex)
             {
-
-                throw new Exception($"Erro ao executar AddDefect. Mensagem: {ex.Message}");
+                throw new Exception($"Erro ao executar AddDefect. Mensagem: {ex.Message}", ex);
             }
         }
-
 
         public async Task CompleteWipIoTAsync(int wipId)
         {
