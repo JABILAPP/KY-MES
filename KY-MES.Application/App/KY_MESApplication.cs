@@ -113,6 +113,68 @@ namespace KY_MES.Controllers
                     }
                     while (completeWipResponse == null && retryCount < maxRetries);
                 }
+                else
+                {
+                    // RESOURCE MACHINE PARA SPI 
+                    string? manufacturingArea = operationhistory.ManufacturingArea;
+                    string suffix = "- Repair 01";
+
+                    string resourceMachineSPI = string.IsNullOrWhiteSpace(manufacturingArea)
+                        ? suffix
+                        : $"{manufacturingArea.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Last()} {suffix}";
+
+                    // Ir o ListDefect e verificar se retornam vazios ou nao
+                    foreach (var wip in wipIdInts)
+                    {
+                        var indictmentIds = await _mESService.GetIndictmentIds(wip.WipId);
+
+                        if (indictmentIds.Count > 0)
+                        {
+                            await _mESService.OkToStartRework(wip.WipId, resourceMachineSPI!, wip.SerialNumber);
+
+                            foreach (var indictmentId in indictmentIds)
+                            {
+                                await _mESService.AddRework(wip.WipId, indictmentId);
+                            }
+
+                            await _mESService.CompleteRework(wipPrincipal);
+                        }
+                    }
+
+                    var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInputRemapped, getWipResponse));
+                    if (okToTestResponse == null || !okToTestResponse.OkToStart)
+                        throw new Exception("Check PV failed");
+
+                    var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInputRemapped, getWipResponse));
+                    if (startWipResponse == null || !startWipResponse.Success)
+                        throw new Exception("start Wip failed");
+
+                    int retryCount = 0;
+                    int maxRetries = 10;
+
+                    do
+                    {
+                        try
+                        {
+                            completeWipResponse = await utils.AddDefectToCompleteWip(
+                                _mESService.AddDefectAsync(
+                                    utils.ToAddDefect(sPIInputRemapped, getWipResponse),
+                                    getWipResponse.WipId
+                                )
+                            );
+                        }
+                        catch (Exception ex)
+                        {
+                            retryCount++;
+                            if (retryCount >= maxRetries)
+                            {
+                                throw new Exception($"Failed to add defect after {maxRetries} retries. Message: {ex.Message}");
+                            }
+                            await Task.Delay(500);
+                        }
+                    }
+                    while (completeWipResponse == null && retryCount < maxRetries);
+                }
             }
             else
             {
