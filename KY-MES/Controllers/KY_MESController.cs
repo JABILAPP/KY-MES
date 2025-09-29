@@ -22,6 +22,8 @@ namespace KY_MES.Controllers
         {
             try
             {
+
+                // var response = await _application.SPISendWipDataLog(sPIInput);
                 var response = await _application.SPISendWipData(sPIInput);
 
                 return Ok(new
@@ -32,7 +34,7 @@ namespace KY_MES.Controllers
                 });
 
 
-                //return Ok(response);
+                // return Ok(response);
 
             }
             catch (Exception ex)

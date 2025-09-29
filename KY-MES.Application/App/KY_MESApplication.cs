@@ -4,8 +4,10 @@ using KY_MES.Domain.V1.DTOs.OutputModels;
 using KY_MES.Domain.V1.Interfaces;
 using KY_MES.Services.DomainServices.Interfaces;
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Net;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace KY_MES.Controllers
 {
@@ -13,14 +15,16 @@ namespace KY_MES.Controllers
     {
         private readonly IMESService _mESService;
         private readonly Utils utils;
+        private readonly ISpiRepository _repo;
 
-        public KY_MESApplication(IMESService mESService)
+        public KY_MESApplication(IMESService mESService, ISpiRepository repo)
         {
             _mESService = mESService;
             utils = new Utils();
+            _repo = repo;
         }
 
-        public async Task<SPIInputModel> SPISendWipData(SPIInputModel sPIInput)
+        public async Task<long> SPISendWipData(SPIInputModel sPIInput)
         {
             var username = Environment.GetEnvironmentVariable("Username");
             var password = Environment.GetEnvironmentVariable("Password");
@@ -29,10 +33,9 @@ namespace KY_MES.Controllers
 
             var operationhistory = await _mESService.GetOperationInfoAsync(sPIInput.Inspection.Barcode);
 
-            // Deduplicação no objeto original (regra atual)
             SpiDefectUtils.KeepOneDefectPerCRDIgnoringEmptyComp(sPIInput);
 
-            // Cria um clone remapeado (NÃO altera sPIInput)
+
             var sPIInputRemapped = await MapearDefeitosSPICriandoNovo(sPIInput);
 
             var getWipResponse = await _mESService.GetWipIdBySerialNumberAsync(utils.SpiToGetWip(sPIInput));
@@ -263,22 +266,160 @@ namespace KY_MES.Controllers
             if (completeWipResponse == null)
                 throw new Exception("complete wip failed");
 
-            return sPIInputRemapped;
+
+
+            try
+            {
+                var units = await BuildInspectionUnitRecords(sPIInputRemapped);
+                var opInfo = await _mESService.GetOperationInfoAsync(sPIInputRemapped.Inspection.Barcode!);
+                var manufacturingArea = opInfo?.ManufacturingArea;
+
+                var run = new InspectionRun
+                {
+                    InspectionBarcode = sPIInputRemapped.Inspection?.Barcode,
+                    Result = sPIInputRemapped.Inspection?.Result,
+                    Program = sPIInputRemapped.Inspection?.Program,
+                    Side = sPIInputRemapped.Inspection?.Side,
+                    Stencil = sPIInputRemapped.Inspection?.Stencil.ToString(),
+                    Machine = sPIInputRemapped.Inspection?.Machine,
+                    User = sPIInputRemapped.Inspection?.User,
+                    StartTime = ParseDateOffset(sPIInputRemapped.Inspection?.Start),
+                    EndTime = ParseDateOffset(sPIInputRemapped.Inspection?.End),
+                    ManufacturingArea = manufacturingArea,
+                    // RawJson = rawJson 
+                };
+
+                var runId = await _repo.SaveSpiRunAsync(run, units);
+                return runId;
+            
+            }
+            catch (Exception ex)
+            {
+                return 0;
+            }
         }
 
-        public async Task<SPIInputModel> SPISendWipDataLog(SPIInputModel sPIInput)
+        public async Task<List<InspectionUnitRecord>> BuildInspectionUnitRecords(SPIInputModel input)
         {
+            if (input is null) throw new ArgumentNullException(nameof(input));
+            if (input.Inspection is null) throw new ArgumentException("Inspection é obrigatório.", nameof(input));
+
+            // 1) Autentica no MES
             var username = Environment.GetEnvironmentVariable("Username");
             var password = Environment.GetEnvironmentVariable("Password");
-
             await _mESService.SignInAsync(utils.SignInRequest(username, password));
 
-            // Retornar clone remapeado
-            var sPIInputRemapped = await MapearDefeitosSPICriandoNovo(sPIInput);
-            return sPIInputRemapped;
+            // 2) Normaliza/deduplica defeitos no input
+            SpiDefectUtils.KeepOneDefectPerCRDIgnoringEmptyComp(input);
+
+            // 3) Busca área de manufatura pelo barcode do run
+            var operationhistory = await _mESService.GetOperationInfoAsync(input.Inspection.Barcode);
+            var manufacturingArea = operationhistory?.ManufacturingArea;
+
+            var remapped = await MapearDefeitosSPICriandoNovo(input);
+
+            // 4) Seleciona um barcode base 
+            var baseUnitBarcode = remapped.Board?
+                .FirstOrDefault(b => !string.IsNullOrWhiteSpace(b.Barcode))?.Barcode;
+
+            if (string.IsNullOrWhiteSpace(baseUnitBarcode))
+            {
+                baseUnitBarcode = remapped.Inspection?.Barcode;
+            }
+
+            // 6) Monta os registros de unidade (um por Array)
+            var runMeta = remapped.Inspection;
+            var units = new List<InspectionUnitRecord>();
+
+            foreach (var b in remapped.Board ?? Enumerable.Empty<Board>())
+            {
+                var arrayIdx = ParseArrayIndex(b.Array);
+
+                var unitBarcode = !string.IsNullOrWhiteSpace(b.Barcode)
+                    ? b.Barcode
+                    : DeriveSequentialBarcode(baseUnitBarcode, arrayIdx);
+
+                var record = new InspectionUnitRecord
+                {
+                    UnitBarcode = unitBarcode,
+                    ArrayIndex = arrayIdx,
+                    Result = b.Result,
+                    Side = runMeta?.Side,
+                    Machine = runMeta?.Machine,
+                    User = runMeta?.User,
+                    StartTime = ParseDate(runMeta?.Start),
+                    EndTime = ParseDate(runMeta?.End),
+                    ManufacturingArea = manufacturingArea
+                };
+
+                var isNg = string.Equals(b.Result, "NG", StringComparison.OrdinalIgnoreCase);
+                if (isNg)
+                {
+                    record.Defects = NormalizeAndDedupDefects(b.Defects);
+                }
+
+                units.Add(record);
+            }
+            return units;
         }
 
-        // Método antigo que altera in-place (mantido caso ainda queira usar em algum lugar)
+            
+        public async Task<long> SPISendWipDataLog(SPIInputModel input)
+        {
+            var units = await BuildInspectionUnitRecords(input); 
+
+            // 2) Monta o run a partir do input.Inspection (use o mesmo que você já usa nos records)
+            var insp = input.Inspection;
+            var opInfo = await _mESService.GetOperationInfoAsync(insp?.Barcode);
+            var manufacturingArea = opInfo?.ManufacturingArea;
+
+            var run = new InspectionRun
+            {
+                InspectionBarcode = insp?.Barcode,
+                Result = insp?.Result,
+                Program = insp?.Program,
+                Side = insp?.Side,
+                Stencil = insp?.Stencil.ToString(), 
+                Machine = insp?.Machine,
+                User = insp?.User,
+                StartTime = ParseDateOffset(insp?.Start), 
+                EndTime = ParseDateOffset(insp?.End),
+                ManufacturingArea = manufacturingArea,
+                // RawJson = rawJson 
+            };
+
+            // 3) Persiste tudo
+            var runId = await _repo.SaveSpiRunAsync(run, units);
+            return runId;
+        }
+
+
+
+
+
+
+
+
+
+
+        public static DateTimeOffset? ParseDateOffset(string? s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return null;
+
+            if (DateTime.TryParseExact(s, "yyyy/MM/dd HH:mm:ss", CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeLocal, out var dtLocal))
+                return new DateTimeOffset(dtLocal);
+
+            if (DateTimeOffset.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dto))
+                return dto;
+
+            if (DateTime.TryParse(s, out var dt))
+                return new DateTimeOffset(dt);
+
+            return null;
+        }
+
+
         void MapearDefeitosSPI(SPIInputModel spi)
         {
             var defectMap = ObterDefectMap();
@@ -304,8 +445,7 @@ namespace KY_MES.Controllers
 
         private static readonly SemaphoreSlim NormalizeLock = new SemaphoreSlim(1, 1);
 
-        // Nova versão: cria e retorna um novo objeto com defeitos mapeados
-        private async Task <SPIInputModel> MapearDefeitosSPICriandoNovo(SPIInputModel spi, CancellationToken ct = default)
+        public async Task<SPIInputModel> MapearDefeitosSPICriandoNovo(SPIInputModel spi, CancellationToken ct = default)
         {
             await NormalizeLock.WaitAsync(ct);
             try
@@ -338,7 +478,7 @@ namespace KY_MES.Controllers
             }
         }
 
-        private static Dictionary<string, string> ObterDefectMap()
+        public static Dictionary<string, string> ObterDefectMap()
         {
             return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
@@ -413,12 +553,83 @@ namespace KY_MES.Controllers
                 new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true,
-                    // Se houver referências cíclicas entre objetos do modelo, descomente:
-                    // ReferenceHandler = ReferenceHandler.Preserve
                 }
             );
             return JsonSerializer.Deserialize<T>(json)!;
         }
+
+
+
+
+        private static string? DeriveSequentialBarcode(string? baseBarcode, int arrayIndex)
+        {
+            if (string.IsNullOrWhiteSpace(baseBarcode)) return null;
+            if (arrayIndex < 1) throw new ArgumentOutOfRangeException(nameof(arrayIndex), "arrayIndex deve ser >= 1");
+
+            var match = Regex.Match(baseBarcode, @"(\d+)$");
+            if (!match.Success) return null;
+
+            var digits = match.Groups[1].Value;
+            var prefix = baseBarcode[..^digits.Length];
+
+            if (!long.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out var number))
+                return null;
+
+            var newNumber = number + (arrayIndex - 1);
+            var padded = newNumber.ToString(new string('0', digits.Length), CultureInfo.InvariantCulture);
+            return prefix + padded;
+        }
+
+        public static int ParseArrayIndex(int? value)
+        {
+            return value ?? 0;
+        }
+
+        public static DateTime? ParseDate(string? s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return null;
+
+            if (DateTime.TryParseExact(s, "yyyy/MM/dd HH:mm:ss",
+                CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var dt))
+                return dt;
+
+            if (DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out dt))
+                return dt;
+
+            return null;
+        }
+
+        public static string NormalizeDefectCode(string? defect, string? review)
+        {
+            var pick = !string.IsNullOrWhiteSpace(review) ? review : defect;
+            return pick?.Trim().Replace(' ', '_').ToUpperInvariant() ?? "";
+        }
+
+        public static List<NormalizedDefect> NormalizeAndDedupDefects(List<Defects>? defects)
+        {
+            var list = new List<NormalizedDefect>();
+            if (defects == null || defects.Count == 0) return list;
+
+            var set = new HashSet<string>();
+            foreach (var d in defects)
+            {
+                var code = NormalizeDefectCode(d.Defect, d.Review);
+                var comp = string.IsNullOrWhiteSpace(d.Comp) ? null : d.Comp.Trim();
+                var part = string.IsNullOrWhiteSpace(d.Part) ? null : d.Part.Trim();
+                var key = $"{comp}|{part}|{code}";
+                if (set.Add(key))
+                {
+                    list.Add(new NormalizedDefect
+                    {
+                        Comp = comp,
+                        Part = part,
+                        DefectCode = code
+                    });
+                }
+            }
+            return list;
+        }
+
     }
 
     public static class SpiDefectUtils
@@ -482,4 +693,7 @@ namespace KY_MES.Controllers
             }
         }
     }
+    
+    
+    
 }
