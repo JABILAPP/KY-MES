@@ -64,8 +64,8 @@ namespace KY_MES.Services
                 throw new Exception($"Erro ao tentar o login com as credenciais fornecidas. Mensagem: {ex.Message}");
             }
         }
-       
-       
+
+
         public async Task<GetWipIdBySerialNumberResponseModels> GetWipIdBySerialNumberAsync(GetWipIdBySerialNumberRequestModel getWipIdRequestModel)
         {
             try
@@ -329,7 +329,7 @@ namespace KY_MES.Services
 
                 var getBody = await getResponse.Content.ReadAsStringAsync();
 
-                var items = JsonConvert.DeserializeObject<List<WipBySerialResponseItem>>(getBody) 
+                var items = JsonConvert.DeserializeObject<List<WipBySerialResponseItem>>(getBody)
                             ?? new List<WipBySerialResponseItem>();
 
                 var pairs = items.SelectMany(rootItem =>
@@ -378,7 +378,7 @@ namespace KY_MES.Services
                 .ToList();
 
                 _wipIdsBySerial[serialNumber] = pairs
-                    .Select(p => p.WipId) 
+                    .Select(p => p.WipId)
                     .ToList();
 
                 return pairs;
@@ -512,7 +512,7 @@ namespace KY_MES.Services
             {
                 throw new Exception($"Erro ao Ok To Start para Rework: {ex.Message}");
             }
-            
+
         }
 
         public async Task<OperationInfo?> GetOperationInfoAsync(string serialNumber)
@@ -562,16 +562,155 @@ namespace KY_MES.Services
         }
 
 
+        public async Task<List<SPIWipInfo>> GetPanelWipInfoAsync(string runBarCode, CancellationToken ct = default)
+        {
+            var url = $"{MesBaseUrl}api-external-api/api/Wips/GetWipIdBySerialNumber?SiteName=MANAUS&SerialNumber={Uri.EscapeDataString(runBarCode)}";
+
+            using var req = new HttpRequestMessage(HttpMethod.Get, url);
+            using var resp = await _client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+            resp.EnsureSuccessStatusCode();
+
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            if (string.IsNullOrWhiteSpace(body))
+                return new List<SPIWipInfo>();
+
+            JToken token;
+            try
+            {
+                token = JToken.Parse(body);
+            }
+            catch (Exception ex)
+            {
+
+                throw;
+            }
+
+            List<SPIWipInfo> result = new();
+
+            if (token is JArray arr)
+            {
+                foreach (var item in arr)
+                {
+                    var info = MapSpiWipInfo(item as JObject);
+                    if (info != null)
+                    {
+                        // Dedup e normalização de PanelWips
+                        NormalizePanel(info);
+                        result.Add(info);
+                    }
+                }
+            }
+            else if (token is JObject obj)
+            {
+                // Caso raro: a API retornar um único objeto
+                var info = MapSpiWipInfo(obj);
+                if (info != null)
+                {
+                    NormalizePanel(info);
+                    result.Add(info);
+                }
+            }
+
+            return result;
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         public IReadOnlyList<int> GetCachedWipIds(string serialNumber)
         {
             return _wipIdsBySerial.TryGetValue(serialNumber, out var ids) ? ids : Array.Empty<int>();
         }
 
-        public IReadOnlyList<int> GetCachedIndictmentIds (int wipId)
+        public IReadOnlyList<int> GetCachedIndictmentIds(int wipId)
         {
             return _indictmentsByWip.TryGetValue(wipId, out var ids) ? ids : Array.Empty<int>();
         }
-    
-    
+
+
+        public static async Task<string> SafeReadAsStringAsync(HttpContent content, CancellationToken ct)
+        {
+            try { return content == null ? string.Empty : await content.ReadAsStringAsync(ct); }
+            catch { return string.Empty; }
+        }
+        
+
+        public static SPIWipInfo MapSpiWipInfo(JObject obj)
+        {
+            if (obj == null) return null;
+
+            var info = new SPIWipInfo
+            {
+                WipId = obj.Value<long?>("WipId") ?? 0,
+                SerialNumber = obj.Value<string>("SerialNumber"),
+                CustomerName = obj.Value<string>("CustomerName"),
+                MaterialName = obj.Value<string>("MaterialName"),
+                IsAssembled = obj.Value<bool?>("IsAssembled") ?? false
+            };
+
+            var panelObj = obj["Panel"] as JObject;
+            if (panelObj != null)
+            {
+                var panel = new Domain.V1.DTOs.InputModels.PanelInfo
+                {
+                    PanelId = panelObj.Value<long?>("PanelId") ?? 0,
+                    PanelSerialNumber = panelObj.Value<string>("PanelSerialNumber"),
+                    ConfiguredWipPerPanel = panelObj.Value<string>("ConfiguredWipPerPanel"),
+                    ActualWipPerPanel = panelObj.Value<string>("ActualWipPerPanel"),
+                    PanelWips = new List<PanelWip>()
+                };
+
+                var panelWipsArr = panelObj["PanelWips"] as JArray;
+                if (panelWipsArr != null)
+                {
+                    foreach (var pwTok in panelWipsArr.OfType<JObject>())
+                    {
+                        var pw = new PanelWip
+                        {
+                            WipId = pwTok.Value<long?>("WipId") ?? 0,
+                            SerialNumber = pwTok.Value<string>("SerialNumber"),
+                            PanelPosition = pwTok.Value<int?>("PanelPosition") ?? 0,
+                            IsPanelBroken = pwTok.Value<bool?>("IsPanelBroken") ?? false
+                        };
+                        panel.PanelWips.Add(pw);
+                    }
+                }
+
+                info.Panel = panel;
+            }
+
+            return info;
+        }
+
+        // Normaliza e deduplica PanelWips por posição e ordena
+        public static void NormalizePanel(SPIWipInfo info)
+        {
+            if (info == null) return;
+            info.Panel ??= new Domain.V1.DTOs.InputModels.PanelInfo();
+            info.Panel.PanelWips ??= new List<PanelWip>();
+
+            // Dedup por PanelPosition, preferindo não quebrados e com SerialNumber preenchido
+            info.Panel.PanelWips = info.Panel.PanelWips
+                .Where(pw => pw.PanelPosition > 0) // filtro básico
+                .GroupBy(pw => pw.PanelPosition)
+                .Select(g => g
+                    .OrderBy(pw => pw.IsPanelBroken) // false (não quebrado) primeiro
+                    .ThenBy(pw => string.IsNullOrWhiteSpace(pw.SerialNumber)) // preferir que tenha serial
+                    .First())
+                .OrderBy(pw => pw.PanelPosition)
+                .ToList();
+        }
     }
 }

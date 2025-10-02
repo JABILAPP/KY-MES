@@ -37,4 +37,6 @@ namespace KY_MES.Domain.V1.DTOs.OutputModels
         public string? RouteStepName { get; set; }
         public string? Resource { get; set; }
     }
+
+
 }

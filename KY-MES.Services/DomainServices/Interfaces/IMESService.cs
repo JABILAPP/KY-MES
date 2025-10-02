@@ -27,6 +27,8 @@ namespace KY_MES.Services.DomainServices.Interfaces
         Task AddRework(int wipId, int indicmentId);
         Task CompleteRework(int wipId);
         Task<OperationInfo?> GetOperationInfoAsync(string serialNumber);
+        Task<List<SPIWipInfo>> GetPanelWipInfoAsync(string runBarCode, CancellationToken ct = default);
+
 
     }
 }

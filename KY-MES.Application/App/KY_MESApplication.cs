@@ -322,12 +322,25 @@ namespace KY_MES.Controllers
             var baseUnitBarcode = remapped.Board?
                 .FirstOrDefault(b => !string.IsNullOrWhiteSpace(b.Barcode))?.Barcode;
 
-            if (string.IsNullOrWhiteSpace(baseUnitBarcode))
+            Dictionary<int, string> positionToSerial = null;
+
+            try
             {
-                baseUnitBarcode = remapped.Inspection?.Barcode;
+                var wipInfos = await _mESService.GetPanelWipInfoAsync(input.Inspection.Barcode);
+                var wipInfo = wipInfos?.FirstOrDefault(w => w.Panel?.PanelWips != null && w.Panel.PanelWips.Any());
+
+                if (wipInfo?.Panel?.PanelWips != null && wipInfo.Panel.PanelWips.Any())
+                {
+                    positionToSerial = wipInfo.Panel.PanelWips
+                    .Where(pw => pw.PanelPosition.HasValue && pw.PanelPosition.Value > 0 && !string.IsNullOrWhiteSpace(pw.SerialNumber))
+                    .GroupBy(pw => (int)pw.PanelPosition!.Value)
+                    .ToDictionary(g => g.Key, g => g.First().SerialNumber);
+                }
+            }
+            catch (Exception ex)
+            {
             }
 
-            // 6) Monta os registros de unidade (um por Array)
             var runMeta = remapped.Inspection;
             var units = new List<InspectionUnitRecord>();
 
@@ -337,7 +350,9 @@ namespace KY_MES.Controllers
 
                 var unitBarcode = !string.IsNullOrWhiteSpace(b.Barcode)
                     ? b.Barcode
-                    : DeriveSequentialBarcode(baseUnitBarcode, arrayIdx);
+                    : (positionToSerial != null && positionToSerial.TryGetValue(arrayIdx, out var serialFromPanel)
+                        ? serialFromPanel
+                        : DeriveSequentialBarcode(baseUnitBarcode, arrayIdx));
 
                 var record = new InspectionUnitRecord
                 {
@@ -406,15 +421,16 @@ namespace KY_MES.Controllers
         {
             if (string.IsNullOrWhiteSpace(s)) return null;
 
-            if (DateTime.TryParseExact(s, "yyyy/MM/dd HH:mm:ss", CultureInfo.InvariantCulture,
-                DateTimeStyles.AssumeLocal, out var dtLocal))
-                return new DateTimeOffset(dtLocal);
-
-            if (DateTimeOffset.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dto))
+            if (DateTimeOffset.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dto))
                 return dto;
 
-            if (DateTime.TryParse(s, out var dt))
-                return new DateTimeOffset(dt);
+            // "yyyy/MM/dd HH:mm:ss" em Manaus
+            if (DateTime.TryParseExact(s, "yyyy/MM/dd HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out var dtNoZone))
+            {
+                var tz = TimeZoneInfo.FindSystemTimeZoneById("America/Manaus");
+                var unspecified = DateTime.SpecifyKind(dtNoZone, DateTimeKind.Unspecified);
+                return new DateTimeOffset(unspecified, tz.GetUtcOffset(unspecified));
+            }
 
             return null;
         }
@@ -630,7 +646,8 @@ namespace KY_MES.Controllers
             return list;
         }
 
-    }
+  
+ }
 
     public static class SpiDefectUtils
     {
