@@ -65,22 +65,22 @@ namespace KY_MES.Controllers
                         : $"{manufacturingArea.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Last()} {suffix}";
 
                     // Ir o ListDefect e verificar se retornam vazios ou nao
-                    foreach (var wip in wipIdInts)
-                    {
-                        var indictmentIds = await _mESService.GetIndictmentIds(wip.WipId);
+                    // foreach (var wip in wipIdInts)
+                    // {
+                    //     var indictmentIds = await _mESService.GetIndictmentIds(wip.WipId);
 
-                        if (indictmentIds.Count > 0)
-                        {
-                            await _mESService.OkToStartRework(wip.WipId, resourceMachineSPI!, wip.SerialNumber);
+                    //     if (indictmentIds.Count > 0)
+                    //     {
+                    //         await _mESService.OkToStartRework(wip.WipId, resourceMachineSPI!, wip.SerialNumber);
 
-                            foreach (var indictmentId in indictmentIds)
-                            {
-                                await _mESService.AddRework(wip.WipId, indictmentId);
-                            }
+                    //         foreach (var indictmentId in indictmentIds)
+                    //         {
+                    //             await _mESService.AddRework(wip.WipId, indictmentId);
+                    //         }
 
-                            await _mESService.CompleteRework(wipPrincipal);
-                        }
-                    }
+                    //         await _mESService.CompleteRework(wipPrincipal);
+                    //     }
+                    // }
 
                     var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInputRemapped, getWipResponse));
                     if (okToTestResponse == null || !okToTestResponse.OkToStart)
@@ -702,11 +702,21 @@ namespace KY_MES.Controllers
             {
                 if (b?.Defects == null || b.Defects.Count == 0) continue;
 
-                b.Defects = b.Defects
+                // Separa defeitos com Comp vazio dos que têm Comp preenchido
+                var defectsWithComp = b.Defects
                     .Where(d => !string.IsNullOrWhiteSpace(d.Comp))
                     .GroupBy(d => d.Comp.Trim(), StringComparer.OrdinalIgnoreCase)
                     .Select(g => g.First())
                     .ToList();
+
+                var defectsWithoutComp = b.Defects
+                    .Where(d => string.IsNullOrWhiteSpace(d.Comp))
+                    .GroupBy(d => $"{d.Part?.Trim()}|{d.Defect?.Trim()}", StringComparer.OrdinalIgnoreCase)
+                    .Select(g => g.First())
+                    .ToList();
+
+                // Combina os dois grupos
+                b.Defects = defectsWithComp.Concat(defectsWithoutComp).ToList();
             }
         }
     }
