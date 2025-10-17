@@ -30,5 +30,10 @@ namespace KY_MES.Services.DomainServices.Interfaces
         Task<List<SPIWipInfo>> GetPanelWipInfoAsync(string runBarCode, CancellationToken ct = default);
 
 
+
+        // pallet tracking 
+        Task AddAttribute(SPIInputModel input);
+
+
     }
 }

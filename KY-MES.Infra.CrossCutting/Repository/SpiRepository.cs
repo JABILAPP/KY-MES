@@ -36,7 +36,8 @@ public class SpiRepository : ISpiRepository
                 User = ur.User,
                 StartTime = ur.StartTime,
                 EndTime = ur.EndTime,
-                ManufacturingArea = ur.ManufacturingArea
+                ManufacturingArea = ur.ManufacturingArea,
+                Pallet = ur.Pallet
             };
             unitsEntities.Add(u);
         }
@@ -59,7 +60,9 @@ public class SpiRepository : ISpiRepository
                     InspectionUnitId = unitEntity.Id,
                     Comp = d.Comp,
                     Part = d.Part,
-                    DefectCode = d.DefectCode
+                    DefectCode = d.DefectCode,
+                    Pallet = unitEntity.Pallet
+                    
                 };
                 defectsToAdd.Add(def);
             }

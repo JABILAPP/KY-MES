@@ -15,6 +15,9 @@ namespace KY_MES.Domain.V1.DTOs.InputModels
 
         [JsonProperty("Board")]
         public List<Board>? Board { get; set; }
+
+        [JsonProperty("Pallet")]
+        public string? Pallet { get; set; }
     }
 
     public partial class Board

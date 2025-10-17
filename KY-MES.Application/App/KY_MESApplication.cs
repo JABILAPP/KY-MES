@@ -8,6 +8,10 @@ using System.Globalization;
 using System.Net;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Data.SqlClient;
+using Dapper;
+using Microsoft.Extensions.Configuration;
+using KY_MES.Domain.DefectMap;
 
 namespace KY_MES.Controllers
 {
@@ -16,12 +20,14 @@ namespace KY_MES.Controllers
         private readonly IMESService _mESService;
         private readonly Utils utils;
         private readonly ISpiRepository _repo;
+        private readonly IConfiguration _configuration;
 
-        public KY_MESApplication(IMESService mESService, ISpiRepository repo)
+        public KY_MESApplication(IMESService mESService, ISpiRepository repo, IConfiguration configuration)
         {
             _mESService = mESService;
             utils = new Utils();
             _repo = repo;
+            _configuration = configuration;
         }
 
         public async Task<long> SPISendWipData(SPIInputModel sPIInput)
@@ -65,22 +71,22 @@ namespace KY_MES.Controllers
                         : $"{manufacturingArea.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Last()} {suffix}";
 
                     // Ir o ListDefect e verificar se retornam vazios ou nao
-                    // foreach (var wip in wipIdInts)
-                    // {
-                    //     var indictmentIds = await _mESService.GetIndictmentIds(wip.WipId);
+                    foreach (var wip in wipIdInts)
+                    {
+                        var indictmentIds = await _mESService.GetIndictmentIds(wip.WipId);
 
-                    //     if (indictmentIds.Count > 0)
-                    //     {
-                    //         await _mESService.OkToStartRework(wip.WipId, resourceMachineSPI!, wip.SerialNumber);
+                        if (indictmentIds.Count > 0)
+                        {
+                            await _mESService.OkToStartRework(wip.WipId, resourceMachineSPI!, wip.SerialNumber);
 
-                    //         foreach (var indictmentId in indictmentIds)
-                    //         {
-                    //             await _mESService.AddRework(wip.WipId, indictmentId);
-                    //         }
+                            foreach (var indictmentId in indictmentIds)
+                            {
+                                await _mESService.AddRework(wip.WipId, indictmentId);
+                            }
 
-                    //         await _mESService.CompleteRework(wipPrincipal);
-                    //     }
-                    // }
+                            await _mESService.CompleteRework(wipPrincipal);
+                        }
+                    }
 
                     var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInputRemapped, getWipResponse));
                     if (okToTestResponse == null || !okToTestResponse.OkToStart)
@@ -354,6 +360,8 @@ namespace KY_MES.Controllers
                         ? serialFromPanel
                         : DeriveSequentialBarcode(baseUnitBarcode, arrayIdx));
 
+
+
                 var record = new InspectionUnitRecord
                 {
                     UnitBarcode = unitBarcode,
@@ -364,7 +372,8 @@ namespace KY_MES.Controllers
                     User = runMeta?.User,
                     StartTime = ParseDate(runMeta?.Start),
                     EndTime = ParseDate(runMeta?.End),
-                    ManufacturingArea = manufacturingArea
+                    ManufacturingArea = manufacturingArea,
+                    Pallet = remapped.Pallet
                 };
 
                 var isNg = string.Equals(b.Result, "NG", StringComparison.OrdinalIgnoreCase);
@@ -381,7 +390,15 @@ namespace KY_MES.Controllers
             
         public async Task<long> SPISendWipDataLog(SPIInputModel input)
         {
-            var units = await BuildInspectionUnitRecords(input); 
+
+            var username = Environment.GetEnvironmentVariable("Username");
+            var password = Environment.GetEnvironmentVariable("Password");
+            await _mESService.SignInAsync(utils.SignInRequest(username, password));
+
+
+            var units = await BuildInspectionUnitRecords(input);
+
+            await _mESService.AddAttribute(input);
 
             // 2) Monta o run a partir do input.Inspection (use o mesmo que você já usa nos records)
             var insp = input.Inspection;
@@ -394,12 +411,13 @@ namespace KY_MES.Controllers
                 Result = insp?.Result,
                 Program = insp?.Program,
                 Side = insp?.Side,
-                Stencil = insp?.Stencil.ToString(), 
+                Stencil = insp?.Stencil.ToString(),
                 Machine = insp?.Machine,
                 User = insp?.User,
-                StartTime = ParseDateOffset(insp?.Start), 
+                StartTime = ParseDateOffset(insp?.Start),
                 EndTime = ParseDateOffset(insp?.End),
                 ManufacturingArea = manufacturingArea,
+                Pallet = input.Pallet
                 // RawJson = rawJson 
             };
 
@@ -436,29 +454,6 @@ namespace KY_MES.Controllers
         }
 
 
-        void MapearDefeitosSPI(SPIInputModel spi)
-        {
-            var defectMap = ObterDefectMap();
-
-            if (spi?.Board == null) return;
-
-            foreach (var board in spi.Board)
-            {
-                if (board?.Defects == null) continue;
-
-                foreach (var defect in board.Defects)
-                {
-                    var originalName = defect.Defect;
-                    var key = originalName?.Trim();
-                    if (key != null && defectMap.TryGetValue(key, out var mapped))
-                    {
-                        defect.Defect = mapped;
-                        defect.Review = mapped;
-                    }
-                }
-            }
-        }
-
         private static readonly SemaphoreSlim NormalizeLock = new SemaphoreSlim(1, 1);
 
         public async Task<SPIInputModel> MapearDefeitosSPICriandoNovo(SPIInputModel spi, CancellationToken ct = default)
@@ -469,7 +464,7 @@ namespace KY_MES.Controllers
                 var clone = DeepClone(spi);
                 if (clone?.Board == null) return clone;
 
-                var defectMap = ObterDefectMap();
+                var defectMap = await ObterDefectMapAsync();
 
                 foreach (var board in clone.Board)
                 {
@@ -494,72 +489,52 @@ namespace KY_MES.Controllers
             }
         }
 
-        public static Dictionary<string, string> ObterDefectMap()
+
+
+        public async Task<Dictionary<string, string>> ObterDefectMapAsync()
         {
-            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            var connectionString = _configuration.GetConnectionString("DefaultConnection");
+
+            using (var connection = new SqlConnection(connectionString))
             {
-                ["UNUSED"] = "UNUSED",
-                ["GOOD"] = "GOOD",
-                ["PASS"] = "GOOD",
-                ["BADMARK"] = "BADMARK",
+                await connection.OpenAsync();
 
-                ["WARNING_EXCESSIVE_VOLUME"] = "Excess solder",
-                ["WARNING_INSUFFICIENT_VOLUME"] = "Insuff solder",
-                ["WARNING_POSITION"] = "Solder Paste Offset",
-                ["WARNING_BRIDGING"] = "Short/Bridging",
-                ["WARNING_GOLDTAB"] = "GOLD SURFACE CONTACT AREA PROBLEM",
-                ["WARNING_SHAPE"] = "Incorrect Shape",
-                ["WARNING_UPPER_HEIGHT"] = "Solder Paste Upper Height",
-                ["WARNING_LOW_HEIGHT"] = "Solder Paste Low Height",
-                ["WARNING_HIGH_AREA"] = "High Area",
-                ["WARNING_LOW_AREA"] = "Low Area",
-                ["WARNING_COPLANARITY"] = "Coplanarity",
-                ["WARNING_SMEAR"] = "Disturbed solder",
-                ["WARNING_FM"] = "SOLDER COVERAGE",
-                ["WARNING_SURFACE"] = "SOLDER COVERAGE",
+                var query = "SELECT [DEFECTCODE], [DESCRIPTION] FROM DEFECTMAP";
 
-                ["NORMALIZE_HEIGHT"] = "SOLDER COVERAGE",
-                ["ROI_NUMBER"] = "SOLDER COVERAGE",
+                var defectMap = await connection.QueryAsync<DefectMapEntity>(query);
 
-                ["EXCESSIVE_VOLUME"] = "Excess solder",
-                ["INSUFFICIENT_VOLUME"] = "Insuff solder",
-                ["POSITION"] = "Solder Paste Offset",
-                ["BRIDGING"] = "Short/Bridging",
-                ["GOLDTAB"] = "GOLD SURFACE CONTACT AREA PROBLEM",
-                ["SHAPE"] = "Incorrect Shape",
-                ["UPPER_HEIGHT"] = "Solder Paste Upper Height",
-                ["LOW_HEIGHT"] = "Solder Paste Low Height",
-                ["HIGH_AREA"] = "High Area",
-                ["LOW_AREA"] = "Low Area",
-                ["COPLANARITY"] = "Coplanarity",
-                ["SMEAR"] = "Disturbed solder",
-                ["FM"] = "SOLDER COVERAGE",
-                ["SURFACE"] = "SOLDER COVERAGE",
-
-                ["REPAIRED"] = "REPAIRED",
-                ["NG"] = "NG",
-                ["UNDEFINED"] = "UNDEFINED",
-                ["PADOVERHANG"] = "Misonserted/Misaligned",
-                ["DIMENSION"] = "Wrong Part",
-                ["MISSING"] = "Missing",
-                ["COMPONENT_SHIFT"] = "Skewed",
-                ["UPSIDEDOWN"] = "Upside down",
-                ["SOLDER_JOINT"] = "Insuff solder",
-                ["LIFTED_LEAD"] = "Lifted lead",
-                ["LIFTED_BODY"] = "Coplanarity",
-                ["BILL_BOARDING"] = "Billboarding",
-                ["TOMBSTONE"] = "Tombstone",
-                ["BODY_DIMENSION"] = "Wrong Part",
-                ["POLARITY"] = "Wrong polarit/reversed",
-                ["OCR_OCV"] = "OCV Fail",
-                ["ABSENCE"] = "Extra part",
-                ["OVERHANG"] = "Misonserted/Misaligned",
-                ["MISSING_LEAD"] = "Missing Lead",
-                ["PARTICLE"] = "PARTICLE",
-                ["FOREIGNMATERIAL_BODY"] = "Foreign material / Particulate matter",
-                ["FOREIGNMATERIAL_LEAD"] = "Foreign material / Particulate matter",
-            };
+                return defectMap.ToDictionary(
+                    x => x.DEFECTCODE, 
+                    x => x.DESCRIPTION,
+                    StringComparer.OrdinalIgnoreCase
+                );
+            }
         }
+
+
+        public Dictionary<string, string> ObterDefectMap()
+        {
+            var connectionString = _configuration.GetConnectionString("DefaultConnection");
+
+            using (var connection = new SqlConnection(connectionString))
+            {
+                connection.Open();
+
+                var query = "SELECT [DEFECTCODE], [DESCRIPTION] FROM DEFECTMAP";
+
+                var defectMap = connection.Query<DefectMapEntity>(query);
+
+                return defectMap.ToDictionary(
+                    x => x.DEFECTCODE,
+                    x => x.DESCRIPTION,
+                    StringComparer.OrdinalIgnoreCase
+                );
+            }
+        }
+
+
+
+
 
         private static T DeepClone<T>(T obj)
         {

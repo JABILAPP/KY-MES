@@ -7,6 +7,8 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using Newtonsoft.Json.Linq;
+using KY_MES.Domain.V1.DTOs.AddAttributeModel;
+using System.Text.Json;
 
 namespace KY_MES.Services
 {
@@ -615,6 +617,65 @@ namespace KY_MES.Services
         }
 
 
+
+        #region PALLET TRACKING
+
+        // 1. Endpoint que adiciona um "Atributo" no Jemsmm pelo WipId do produto pra cada wipid da board 
+
+        public async Task AddAttribute(SPIInputModel input)
+        {
+            var serialNumber = input.Inspection.Barcode;
+            var pallet = input.Pallet;
+
+            var wipsIds = await GetWipIds(serialNumber);
+
+            foreach (var wipId in wipsIds)
+            {
+                try
+                {
+                    var url = $"{MesBaseUrl}/api-external-api/api/Wips/{wipId.WipId}/attributes";
+
+                    var payload = new AddAttributeDto
+                    {
+                        AttributeName = "Pallet",
+                        AttributeType = "string",
+                        AttributeValue = pallet,
+                        WipId = wipId.WipId,
+                        PanelAttributeList = new List<PanelAttributeList>
+                        {
+                            new PanelAttributeList
+                            {
+                                WipId = wipId.WipId,
+                                AttributeAssignments = new List<AttributeAssignments>
+                                {
+                                    new AttributeAssignments
+                                    {
+                                        AttributeName = "Pallet",
+                                        AttributeType = "string",
+                                        AttributeValue = pallet
+                                    }
+                                }
+                            }
+                        }
+                    };
+
+                    var json = System.Text.Json.JsonSerializer.Serialize(payload);
+
+                    using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+                    var response = await _client.PostAsync(url, content);
+                    response.EnsureSuccessStatusCode();
+                }
+                catch (HttpRequestException ex)
+                {
+                    Console.WriteLine($"Erro ao processar wipId {wipId.WipId}: {ex.Message}");
+                    continue;
+                }
+            }
+
+            return;
+        }
+        #endregion
 
 
 
