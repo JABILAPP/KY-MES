@@ -696,9 +696,9 @@ namespace KY_MES.Services
 
                 var json = JObject.Parse(getBody);
 
-                var assemblyId = json["Wips"]?[0]?["AssemblyId"]?.Value<int>() ?? 0; // pega o assemblyid do retorno do json
+                var bomId = json["Wips"]?[0]?["Bom"]?["BomId"]?.Value<int>() ?? 0;
 
-                return assemblyId;
+                return bomId;
             }
             catch (Exception ex)
             {

@@ -1,4 +1,5 @@
-﻿using KY_MES.Domain.V1.DTOs.InputModels;
+﻿using KY_MES.Application.Utils;
+using KY_MES.Domain.V1.DTOs.InputModels;
 using KY_MES.Domain.V1.Interfaces;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
@@ -33,13 +34,29 @@ namespace KY_MES.Controllers
                     Code = 200
                 });
 
-
-                // return Ok(response);
-
+            }
+            catch (CheckPVFailedException ex)
+            {
+                return BadRequest(new
+                {
+                    ErrorType = "PCB não está na rota da SPI"
+                });
+            }catch (BomProgramFailException ex)
+            {
+                return BadRequest(new
+                {
+                    ErrorType = "Programa diferente para esse produto"
+                });
             }
             catch (Exception ex)
             {
-                return BadRequest("Error while sending SPI data to MES: " + ex.Message);
+                return BadRequest(new
+                {
+                    Result = "Error",
+                    Success = false,
+                    Code = 400,
+                    Message = "Error while sending SPI data to MES: " + ex.Message
+                });
             }
         }
 

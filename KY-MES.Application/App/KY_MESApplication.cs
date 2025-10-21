@@ -282,7 +282,7 @@ namespace KY_MES.Controllers
 
                         var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInputRemapped, getWipResponse));
                         if (okToTestResponse == null || !okToTestResponse.OkToStart)
-                            throw new Exception("Check PV failed");
+                            throw new CheckPVFailedException("Check PV failed");
 
                         var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInputRemapped, getWipResponse));
                         if (startWipResponse == null || !startWipResponse.Success)
@@ -295,7 +295,7 @@ namespace KY_MES.Controllers
                     }
                     else
                     {
-                        throw new Exception("Program is different for this product");
+                        throw new BomProgramFailException("Program is different for this product");
                     }
 
                         
