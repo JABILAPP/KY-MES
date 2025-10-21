@@ -35,5 +35,11 @@ namespace KY_MES.Services.DomainServices.Interfaces
         Task AddAttribute(SPIInputModel input);
 
 
+
+        // BOM comparing 
+        Task<string> GetProgramInBom(int assemblyId);
+        Task<int> GetAssemblyId(int wipId);
+
+
     }
 }

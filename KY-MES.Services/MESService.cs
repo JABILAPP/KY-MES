@@ -682,7 +682,52 @@ namespace KY_MES.Services
 
 
 
+        #region SEARCH FERT IN BOM
+        public async Task<int> GetAssemblyId(int wipId)
+        {
+            try
+            {
+                var wipURL = $"{MesBaseUrl}api-external-api/api/Wips/{wipId}/Bom";
 
+                var response = await _client.GetAsync(wipURL);
+                response.EnsureSuccessStatusCode();
+
+                var getBody = await response.Content.ReadAsStringAsync();
+
+                var json = JObject.Parse(getBody);
+
+                var assemblyId = json["Wips"]?[0]?["AssemblyId"]?.Value<int>() ?? 0; // pega o assemblyid do retorno do json
+
+                return assemblyId;
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Erro ao pegar AssemblyId: {ex.Message}");
+            }
+        }
+
+        // bom structure
+
+        public async Task<string> GetProgramInBom(int assemblyId)
+        {
+            var bomStructureUrl = $"{MesBaseUrl}api-external-api/api/boms/{assemblyId}/bomStructure";
+
+            var response = await _client.GetAsync(bomStructureUrl);
+            response.EnsureSuccessStatusCode();
+
+            var getBody = await response.Content.ReadAsStringAsync();
+
+            var json = JObject.Parse(getBody);
+
+            var parentBomName = json["BomHierarchy"]?
+                .FirstOrDefault(item => item["ParentBomName"]?.ToString().EndsWith("TOP") == true)?
+                ["ParentBomName"]?.ToString();
+
+            return parentBomName ?? string.Empty;
+        }
+
+
+        #endregion
 
 
 

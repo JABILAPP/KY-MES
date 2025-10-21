@@ -37,7 +37,7 @@ public class SpiRepository : ISpiRepository
                 StartTime = ur.StartTime,
                 EndTime = ur.EndTime,
                 ManufacturingArea = ur.ManufacturingArea,
-                Pallet = ur.Pallet
+                //Pallet = ur.Pallet
             };
             unitsEntities.Add(u);
         }
@@ -61,7 +61,7 @@ public class SpiRepository : ISpiRepository
                     Comp = d.Comp,
                     Part = d.Part,
                     DefectCode = d.DefectCode,
-                    Pallet = unitEntity.Pallet
+                    //Pallet = unitEntity.Pallet
                     
                 };
                 defectsToAdd.Add(def);

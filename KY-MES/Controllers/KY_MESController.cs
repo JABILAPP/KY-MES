@@ -42,5 +42,6 @@ namespace KY_MES.Controllers
                 return BadRequest("Error while sending SPI data to MES: " + ex.Message);
             }
         }
+
     }
 }

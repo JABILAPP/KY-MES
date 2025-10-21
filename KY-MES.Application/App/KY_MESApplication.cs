@@ -32,18 +32,21 @@ namespace KY_MES.Controllers
 
         public async Task<long> SPISendWipData(SPIInputModel sPIInput)
         {
+            // auth method
             var username = Environment.GetEnvironmentVariable("Username");
             var password = Environment.GetEnvironmentVariable("Password");
-
             await _mESService.SignInAsync(utils.SignInRequest(username, password));
 
+            // get history for production line
             var operationhistory = await _mESService.GetOperationInfoAsync(sPIInput.Inspection.Barcode);
 
+            // ignoring empty crds and keep only one defect per crd
             SpiDefectUtils.KeepOneDefectPerCRDIgnoringEmptyComp(sPIInput);
 
-
+            // new dto 
             var sPIInputRemapped = await MapearDefeitosSPICriandoNovo(sPIInput);
 
+            // get wip id
             var getWipResponse = await _mESService.GetWipIdBySerialNumberAsync(utils.SpiToGetWip(sPIInput));
             if (getWipResponse.WipId == null)
                 throw new Exception("WipId is null");
@@ -55,13 +58,20 @@ namespace KY_MES.Controllers
 
             CompleteWipResponseModel? completeWipResponse = null;
 
-            await Task.Delay(2000);
+
+            // Comparação de BOM TOP para o Program da AOI 
+            var assemblyId = await _mESService.GetAssemblyId(wipPrincipal);
+            var parentBom = await _mESService.GetProgramInBom(assemblyId);
+
+
+            //await Task.Delay(2000);
 
             if (sPIInputRemapped.Inspection.Result.Contains("NG"))
             {
                 // DIFERENCIAÇÃO DE INPUT PARA OS LOGS DE SPI 
                 if (sPIInputRemapped.Inspection.Machine.StartsWith("SS-DL"))
                 {
+
                     // RESOURCE MACHINE PARA SPI 
                     string? manufacturingArea = operationhistory.ManufacturingArea;
                     string suffix = "- Repair 01";
@@ -124,65 +134,75 @@ namespace KY_MES.Controllers
                 }
                 else
                 {
-                    // RESOURCE MACHINE PARA SPI 
-                    string? manufacturingArea = operationhistory.ManufacturingArea;
-                    string suffix = "- Repair 01";
-
-                    string resourceMachineSPI = string.IsNullOrWhiteSpace(manufacturingArea)
-                        ? suffix
-                        : $"{manufacturingArea.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Last()} {suffix}";
-
-                    // Ir o ListDefect e verificar se retornam vazios ou nao
-                    foreach (var wip in wipIdInts)
+                    var programFromAOI = sPIInputRemapped.Inspection.Program;
+                    if (programFromAOI == parentBom)
                     {
-                        var indictmentIds = await _mESService.GetIndictmentIds(wip.WipId);
+                        // RESOURCE MACHINE PARA SPI 
+                        string? manufacturingArea = operationhistory.ManufacturingArea;
+                        string suffix = "- Repair 01";
 
-                        if (indictmentIds.Count > 0)
+                        string resourceMachineSPI = string.IsNullOrWhiteSpace(manufacturingArea)
+                            ? suffix
+                            : $"{manufacturingArea.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Last()} {suffix}";
+
+                        // Ir o ListDefect e verificar se retornam vazios ou nao
+                        foreach (var wip in wipIdInts)
                         {
-                            await _mESService.OkToStartRework(wip.WipId, resourceMachineSPI!, wip.SerialNumber);
+                            var indictmentIds = await _mESService.GetIndictmentIds(wip.WipId);
 
-                            foreach (var indictmentId in indictmentIds)
+                            if (indictmentIds.Count > 0)
                             {
-                                await _mESService.AddRework(wip.WipId, indictmentId);
-                            }
+                                await _mESService.OkToStartRework(wip.WipId, resourceMachineSPI!, wip.SerialNumber);
 
-                            await _mESService.CompleteRework(wipPrincipal);
+                                foreach (var indictmentId in indictmentIds)
+                                {
+                                    await _mESService.AddRework(wip.WipId, indictmentId);
+                                }
+
+                                await _mESService.CompleteRework(wipPrincipal);
+                            }
                         }
+
+                        var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInputRemapped, getWipResponse));
+                        if (okToTestResponse == null || !okToTestResponse.OkToStart)
+                            throw new Exception("Check PV failed");
+
+                        var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInputRemapped, getWipResponse));
+                        if (startWipResponse == null || !startWipResponse.Success)
+                            throw new Exception("start Wip failed");
+
+                        int retryCount = 0;
+                        int maxRetries = 10;
+
+                        do
+                        {
+                            try
+                            {
+                                completeWipResponse = await utils.AddDefectToCompleteWip(
+                                    _mESService.AddDefectAsync(
+                                        utils.ToAddDefect(sPIInputRemapped, getWipResponse),
+                                        getWipResponse.WipId
+                                    )
+                                );
+                            }
+                            catch (Exception ex)
+                            {
+                                retryCount++;
+                                if (retryCount >= maxRetries)
+                                {
+                                    throw new Exception($"Failed to add defect after {maxRetries} retries. Message: {ex.Message}");
+                                }
+                                await Task.Delay(500);
+                            }
+                        }
+                        while (completeWipResponse == null && retryCount < maxRetries);
+                    }
+                    else
+                    {
+                        throw new Exception("Program is different for this product");
                     }
 
-                    var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInputRemapped, getWipResponse));
-                    if (okToTestResponse == null || !okToTestResponse.OkToStart)
-                        throw new Exception("Check PV failed");
 
-                    var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInputRemapped, getWipResponse));
-                    if (startWipResponse == null || !startWipResponse.Success)
-                        throw new Exception("start Wip failed");
-
-                    int retryCount = 0;
-                    int maxRetries = 10;
-
-                    do
-                    {
-                        try
-                        {
-                            completeWipResponse = await utils.AddDefectToCompleteWip(
-                                _mESService.AddDefectAsync(
-                                    utils.ToAddDefect(sPIInputRemapped, getWipResponse),
-                                    getWipResponse.WipId
-                                )
-                            );
-                        }
-                        catch (Exception ex)
-                        {
-                            retryCount++;
-                            if (retryCount >= maxRetries)
-                            {
-                                throw new Exception($"Failed to add defect after {maxRetries} retries. Message: {ex.Message}");
-                            }
-                            await Task.Delay(500);
-                        }
-                    }
-                    while (completeWipResponse == null && retryCount < maxRetries);
                 }
             }
             else
@@ -230,42 +250,55 @@ namespace KY_MES.Controllers
                 }
                 else
                 {
-                    string? manufacturingArea = operationhistory.ManufacturingArea;
-                    string suffix = "- Repair 01";
 
-                    string resourceMachineAOI = string.IsNullOrWhiteSpace(manufacturingArea)
-                        ? suffix
-                        : $"{manufacturingArea.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Last()} {suffix}";
+                    var programFromAOI = sPIInputRemapped.Inspection.Program;
 
-                    // Ir o ListDefect e verificar se retornam vazios ou nao
-                    foreach (var wip in wipIdInts)
+                    if (programFromAOI == parentBom)
                     {
-                        var indictmentIds = await _mESService.GetIndictmentIds(wip.WipId);
+                        string? manufacturingArea = operationhistory.ManufacturingArea;
+                        string suffix = "- Repair 01";
 
-                        if (indictmentIds.Count > 0)
+                        string resourceMachineAOI = string.IsNullOrWhiteSpace(manufacturingArea)
+                            ? suffix
+                            : $"{manufacturingArea.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Last()} {suffix}";
+
+                        // Ir o ListDefect e verificar se retornam vazios ou nao
+                        foreach (var wip in wipIdInts)
                         {
-                            await _mESService.OkToStartRework(wip.WipId, resourceMachineAOI!, wip.SerialNumber);
+                            var indictmentIds = await _mESService.GetIndictmentIds(wip.WipId);
 
-                            foreach (var indictmentId in indictmentIds)
+                            if (indictmentIds.Count > 0)
                             {
-                                await _mESService.AddRework(wip.WipId, indictmentId);
-                            }
+                                await _mESService.OkToStartRework(wip.WipId, resourceMachineAOI!, wip.SerialNumber);
 
-                            await _mESService.CompleteRework(wipPrincipal);
+                                foreach (var indictmentId in indictmentIds)
+                                {
+                                    await _mESService.AddRework(wip.WipId, indictmentId);
+                                }
+
+                                await _mESService.CompleteRework(wipPrincipal);
+                            }
                         }
+
+                        var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInputRemapped, getWipResponse));
+                        if (okToTestResponse == null || !okToTestResponse.OkToStart)
+                            throw new Exception("Check PV failed");
+
+                        var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInputRemapped, getWipResponse));
+                        if (startWipResponse == null || !startWipResponse.Success)
+                            throw new Exception("start Wip failed");
+
+                        completeWipResponse = await _mESService.CompleteWipPassAsync(
+                            utils.ToCompleteWipPass(sPIInputRemapped, getWipResponse), getWipResponse.WipId.ToString()
+                        );
+
+                    }
+                    else
+                    {
+                        throw new Exception("Program is different for this product");
                     }
 
-                    var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInputRemapped, getWipResponse));
-                    if (okToTestResponse == null || !okToTestResponse.OkToStart)
-                        throw new Exception("Check PV failed");
-
-                    var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInputRemapped, getWipResponse));
-                    if (startWipResponse == null || !startWipResponse.Success)
-                        throw new Exception("start Wip failed");
-
-                    completeWipResponse = await _mESService.CompleteWipPassAsync(
-                        utils.ToCompleteWipPass(sPIInputRemapped, getWipResponse), getWipResponse.WipId.ToString()
-                    );
+                        
                 }
             }
 
@@ -304,6 +337,70 @@ namespace KY_MES.Controllers
                 return 0;
             }
         }
+
+       
+
+            
+        public async Task<long> SPISendWipDataLog(SPIInputModel input)
+        {
+
+            var username = Environment.GetEnvironmentVariable("Username");
+            var password = Environment.GetEnvironmentVariable("Password");
+
+
+            await _mESService.SignInAsync(utils.SignInRequest(username, password));
+
+            var getWipResponse = await _mESService.GetWipIdBySerialNumberAsync(utils.SpiToGetWip(input));
+
+            var WipId = getWipResponse.WipId;
+
+            var assemblyId = await _mESService.GetAssemblyId(WipId);
+
+            var parentBom = await _mESService.GetProgramInBom(assemblyId);
+
+
+
+            var programFromAOI = input.Inspection.Program;
+            if (programFromAOI != parentBom)
+            {
+                throw new Exception("Diferent programs in assembly");
+            }
+
+
+            var units = await BuildInspectionUnitRecords(input);
+
+            await _mESService.AddAttribute(input);
+
+            // 2) Monta o run a partir do input.Inspection (use o mesmo que você já usa nos records)
+            var insp = input.Inspection;
+            var opInfo = await _mESService.GetOperationInfoAsync(insp?.Barcode);
+            var manufacturingArea = opInfo?.ManufacturingArea;
+
+            var run = new InspectionRun
+            {
+                InspectionBarcode = insp?.Barcode,
+                Result = insp?.Result,
+                Program = insp?.Program,
+                Side = insp?.Side,
+                Stencil = insp?.Stencil.ToString(),
+                Machine = insp?.Machine,
+                User = insp?.User,
+                StartTime = ParseDateOffset(insp?.Start),
+                EndTime = ParseDateOffset(insp?.End),
+                ManufacturingArea = manufacturingArea,
+                //Pallet = input.Pallet
+                // RawJson = rawJson 
+            };
+
+            // 3) Persiste tudo
+            var runId = await _repo.SaveSpiRunAsync(run, units);
+            return runId;
+        }
+
+
+
+
+
 
         public async Task<List<InspectionUnitRecord>> BuildInspectionUnitRecords(SPIInputModel input)
         {
@@ -373,7 +470,7 @@ namespace KY_MES.Controllers
                     StartTime = ParseDate(runMeta?.Start),
                     EndTime = ParseDate(runMeta?.End),
                     ManufacturingArea = manufacturingArea,
-                    Pallet = remapped.Pallet
+                    //Pallet = remapped.Pallet
                 };
 
                 var isNg = string.Equals(b.Result, "NG", StringComparison.OrdinalIgnoreCase);
@@ -386,52 +483,6 @@ namespace KY_MES.Controllers
             }
             return units;
         }
-
-            
-        public async Task<long> SPISendWipDataLog(SPIInputModel input)
-        {
-
-            var username = Environment.GetEnvironmentVariable("Username");
-            var password = Environment.GetEnvironmentVariable("Password");
-            await _mESService.SignInAsync(utils.SignInRequest(username, password));
-
-
-            var units = await BuildInspectionUnitRecords(input);
-
-            await _mESService.AddAttribute(input);
-
-            // 2) Monta o run a partir do input.Inspection (use o mesmo que você já usa nos records)
-            var insp = input.Inspection;
-            var opInfo = await _mESService.GetOperationInfoAsync(insp?.Barcode);
-            var manufacturingArea = opInfo?.ManufacturingArea;
-
-            var run = new InspectionRun
-            {
-                InspectionBarcode = insp?.Barcode,
-                Result = insp?.Result,
-                Program = insp?.Program,
-                Side = insp?.Side,
-                Stencil = insp?.Stencil.ToString(),
-                Machine = insp?.Machine,
-                User = insp?.User,
-                StartTime = ParseDateOffset(insp?.Start),
-                EndTime = ParseDateOffset(insp?.End),
-                ManufacturingArea = manufacturingArea,
-                Pallet = input.Pallet
-                // RawJson = rawJson 
-            };
-
-            // 3) Persiste tudo
-            var runId = await _repo.SaveSpiRunAsync(run, units);
-            return runId;
-        }
-
-
-
-
-
-
-
 
 
 
