@@ -38,6 +38,7 @@ namespace KY_MES.Services.DomainServices.Interfaces
 
         // BOM comparing 
         Task<string> GetProgramInBom(int assemblyId);
+        Task<string> GetProgramInBomSPI(int assemblyId);
         Task<int> GetAssemblyId(int wipId);
 
 

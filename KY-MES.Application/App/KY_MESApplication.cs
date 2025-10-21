@@ -12,6 +12,7 @@ using System.Data.SqlClient;
 using Dapper;
 using Microsoft.Extensions.Configuration;
 using KY_MES.Domain.DefectMap;
+using KY_MES.Domain.ModelType;
 
 namespace KY_MES.Controllers
 {
@@ -62,6 +63,33 @@ namespace KY_MES.Controllers
             // Comparação de BOM TOP para o Program da AOI 
             var assemblyId = await _mESService.GetAssemblyId(wipPrincipal);
             var parentBom = await _mESService.GetProgramInBom(assemblyId);
+            var parentBomSPI = await _mESService.GetProgramInBomSPI(assemblyId);
+
+
+            // CHECKAGEM DE ASSEMBLY PELO DICIONARIO PASSANDO O PROGRAM DO LOG, COLOCAR UM CONTAINS 
+            var programFromSPI = sPIInputRemapped.Inspection.Program;
+
+            if (programFromSPI.Contains("GB"))
+            {
+                var assemblyModelMemory = await ObterTypeModelMemoryAsync();
+
+                if (!assemblyModelMemory.TryGetValue(parentBomSPI, out var sizeFromDB))
+                {
+                    throw new Exception($"FERT {parentBomSPI} não encontrado no dicionário");
+                }
+
+
+                var sizeMatch = System.Text.RegularExpressions.Regex.Match(programFromSPI, @"-(\d{3})(?:GB)?-");
+                if (sizeMatch.Success)
+                {
+                    var sizeFromSPI = sizeMatch.Groups[1].Value + "G"; // "128G" ou "256G"
+
+                    if (sizeFromDB != sizeFromSPI)
+                    {
+                        throw new Exception($"Size não corresponde. Esperado: {sizeFromDB}, Recebido: {sizeFromSPI}");
+                    }
+                }
+            }
 
 
             //await Task.Delay(2000);
@@ -209,6 +237,9 @@ namespace KY_MES.Controllers
             {
                 if (sPIInputRemapped.Inspection.Machine.StartsWith("SS-DL"))
                 {
+
+
+
                     string? manufacturingArea = operationhistory.ManufacturingArea;
                     string suffix = "- Repair 01";
 
@@ -561,6 +592,33 @@ namespace KY_MES.Controllers
                 );
             }
         }
+
+
+        public async Task<Dictionary<string, string>> ObterTypeModelMemoryAsync()
+        {
+            var connectionString = _configuration.GetConnectionString("DefaultConnection");
+
+            using (var connection = new SqlConnection(connectionString))
+            {
+                await connection.OpenAsync();
+
+                var query = "SELECT [FERT], [SIZE] FROM FERTMAP";
+
+                var defectMap = await connection.QueryAsync<ModelTypeMemory>(query);
+
+                return defectMap.ToDictionary(
+                    x => x.FERT,
+                    x => x.SIZE,
+                    StringComparer.OrdinalIgnoreCase
+                );
+            }
+        }
+
+
+
+
+
+
 
 
         public Dictionary<string, string> ObterDefectMap()

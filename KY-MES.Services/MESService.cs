@@ -683,6 +683,7 @@ namespace KY_MES.Services
 
 
         #region SEARCH FERT IN BOM
+        // get bom id 
         public async Task<int> GetAssemblyId(int wipId)
         {
             try
@@ -707,7 +708,6 @@ namespace KY_MES.Services
         }
 
         // bom structure
-
         public async Task<string> GetProgramInBom(int assemblyId)
         {
             var bomStructureUrl = $"{MesBaseUrl}api-external-api/api/boms/{assemblyId}/bomStructure";
@@ -726,6 +726,23 @@ namespace KY_MES.Services
             return parentBomName ?? string.Empty;
         }
 
+
+        public async Task<string> GetProgramInBomSPI(int assemblyId)
+        {
+            var bomStructureUrl = $"{MesBaseUrl}api-external-api/api/boms/{assemblyId}/bomStructure";
+
+            var response = await _client.GetAsync(bomStructureUrl);
+            response.EnsureSuccessStatusCode();
+
+            var getBody = await response.Content.ReadAsStringAsync();
+
+            var json = JObject.Parse(getBody);
+
+            var parentBomName = json["BomHierarchy"]?
+                .FirstOrDefault()?["ParentBomName"]?.ToString();
+
+            return parentBomName ?? string.Empty;
+        }
 
         #endregion
 
