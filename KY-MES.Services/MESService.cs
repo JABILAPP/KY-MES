@@ -9,6 +9,8 @@ using System.Text;
 using Newtonsoft.Json.Linq;
 using KY_MES.Domain.V1.DTOs.AddAttributeModel;
 using System.Text.Json;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Data.SqlClient;
 
 namespace KY_MES.Services
 {
@@ -19,27 +21,41 @@ namespace KY_MES.Services
         private readonly HttpClientHandler _handler;
         private readonly HttpClient _client;
 
+        private readonly IConfiguration _configuration;
 
         private readonly ConcurrentDictionary<int, List<int>> _indictmentsByWip = new ConcurrentDictionary<int, List<int>>();
         private readonly ConcurrentDictionary<string, List<int>> _wipIdsBySerial = new ConcurrentDictionary<string, List<int>>();
 
 
-
-
-        public MESService()
+        public MESService(IConfiguration configuration)
         {
-            // Creating a CookieContainer to store the cookie
+            _configuration = configuration;
             _cookieContainer = new CookieContainer();
-
-            // Initializing HttpClientHandler with the CookieContainer
             _handler = new HttpClientHandler
             {
                 CookieContainer = _cookieContainer
             };
-
-            // Initializing HttpClient with the handler
             _client = new HttpClient(_handler);
+
+            var token = GetUserTokenFromDb();
+            if (!string.IsNullOrEmpty(token) && !string.IsNullOrEmpty(MesBaseUrl))
+            {
+                _cookieContainer.Add(new Uri(MesBaseUrl), new Cookie("UserToken", token));
+            }
         }
+
+        private string GetUserTokenFromDb()
+        {
+            var connectionString = _configuration.GetConnectionString("DefaultConnection");
+            using var connection = new SqlConnection(connectionString);
+            connection.Open();
+
+            var cmd = new SqlCommand("SELECT TOP 1 [UserToken] FROM [KY-MES].[dbo].[MesUserTokenLog] ORDER BY [LastUpdated] DESC", connection);
+            var token = cmd.ExecuteScalar() as string;
+            return token ?? string.Empty;
+        }
+
+
         public async Task SignInAsync(SignInRequestModel signInRequestModel)
         {
             try
@@ -768,7 +784,7 @@ namespace KY_MES.Services
             try { return content == null ? string.Empty : await content.ReadAsStringAsync(ct); }
             catch { return string.Empty; }
         }
-        
+
 
         public static SPIWipInfo MapSpiWipInfo(JObject obj)
         {
