@@ -63,7 +63,7 @@ namespace KY_MES.Services
             }
             catch (Exception ex)
             {
-                throw new Exception($"Erro ao tentar o login com as credenciais fornecidas. Mensagem: {ex.Message}");
+                throw new SingInException($"Erro ao tentar o login com as credenciais fornecidas da conta de serviço");
             }
         }
 
@@ -82,7 +82,7 @@ namespace KY_MES.Services
                 var responseModel = JsonConvert.DeserializeObject<List<GetWipIdBySerialNumberResponseModels>>(responseBody)[0];
                 return responseModel;
             }
-            catch (Exception ex) { throw new Exception($"Erro ao coletar o WipId. Mensagem: {ex.Message}"); }
+            catch (Exception ex) { throw new WipIdException($"Erro ao coletar o WipId. Mensagem: {ex.Message}"); }
 
         }
 
@@ -104,7 +104,7 @@ namespace KY_MES.Services
             catch (Exception ex)
             {
 
-                throw new Exception($"Erro ao fazer o Check PV. Mensagem: {ex.Message}");
+                throw new CheckPvException($"Erro ao fazer o Check PV. Mensagem: {ex.Message}");
             }
         }
 
@@ -128,7 +128,7 @@ namespace KY_MES.Services
             }
             catch (Exception ex)
             {
-                throw new Exception($"Erro ao executar StartWip. Mensagem: {ex.Message}");
+                throw new StartWipException($"Erro ao executar StartWip. Mensagem: {ex.Message}");
             }
         }
 
@@ -151,7 +151,7 @@ namespace KY_MES.Services
             }
             catch (Exception ex)
             {
-                throw new Exception($"Erro ao executar CompleteWipFail. Mensagem: {ex.Message}");
+                throw new CompleteWipFailException($"Erro ao executar CompleteWipFail. Mensagem: {ex.Message}");
             }
         }
 
@@ -223,7 +223,7 @@ namespace KY_MES.Services
                 if (!response.IsSuccessStatusCode)
                 {
                     var body = await response.Content.ReadAsStringAsync();
-                    throw new Exception($"Erro ao executar AddDefect. Status: {(int)response.StatusCode} {response.ReasonPhrase}. Body: {body}");
+                    throw new AddDefectException($"Erro ao executar AddDefect (COMPONENTES E NEM HALMBIM ESTÁ SENDO ACEITO PELO MES)");
                 }
 
                 await CompleteWipIoTAsync(WipId);
@@ -232,7 +232,7 @@ namespace KY_MES.Services
             }
             catch (Exception ex)
             {
-                throw new Exception($"Erro ao executar AddDefect. Mensagem: {ex.Message}", ex);
+                throw new AddDefectException($"Erro ao executar AddDefect. Mensagem: {ex.Message}");
             }
         }
 

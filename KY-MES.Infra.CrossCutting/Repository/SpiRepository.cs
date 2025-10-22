@@ -1,6 +1,8 @@
 using KY_MES.Domain.V1.DTOs.InputModels;
 using KY_MES.Domain.V1.Interfaces;
 using KY_MES.Infra.CrossCutting.Data;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.EntityFrameworkCore;
 
 namespace KY_MES.Infra.CrossCutting;
 
@@ -15,6 +17,16 @@ public class SpiRepository : ISpiRepository
 
     public async Task<long> SaveSpiRunAsync(InspectionRun run, List<InspectionUnitRecord> units, CancellationToken ct = default)
     {
+        // 0) checkagem se o run já existe no database
+        var existingLogInDb = await _db.InspectionRuns
+        .FirstOrDefaultAsync(x => x.InspectionBarcode == run.InspectionBarcode && x.Side == run.Side, ct);
+
+        if (existingLogInDb != null)
+        {
+            return existingLogInDb.Id;
+        }
+    
+        
         using var tx = await _db.Database.BeginTransactionAsync(ct);
 
         // 1) Salva o run

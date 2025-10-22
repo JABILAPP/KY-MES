@@ -39,7 +39,7 @@ namespace KY_MES.Controllers
             {
                 return BadRequest(new
                 {
-                    ErrorType = "PCB não está na rota da SPI"
+                    ErrorType = "PCB não está na rota correta"
                 });
             }catch (BomProgramFailException ex)
             {

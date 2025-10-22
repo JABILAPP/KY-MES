@@ -13,6 +13,7 @@ using Dapper;
 using Microsoft.Extensions.Configuration;
 using KY_MES.Domain.DefectMap;
 using KY_MES.Domain.ModelType;
+using KY_MES.Application;
 
 namespace KY_MES.Controllers
 {
@@ -50,7 +51,7 @@ namespace KY_MES.Controllers
             // get wip id
             var getWipResponse = await _mESService.GetWipIdBySerialNumberAsync(utils.SpiToGetWip(sPIInput));
             if (getWipResponse.WipId == null)
-                throw new Exception("WipId is null");
+                throw new Exception("WipId não encontrado");
 
             // 1. Capturar o wip ID do produto e serial
             var serialNumber = sPIInput.Inspection.Barcode;
@@ -75,7 +76,7 @@ namespace KY_MES.Controllers
 
                 if (!assemblyModelMemory.TryGetValue(parentBomSPI, out var sizeFromDB))
                 {
-                    throw new Exception($"FERT {parentBomSPI} não encontrado no dicionário");
+                    throw new FertSpiException($"FERT {parentBomSPI} não encontrado no dicionário");
                 }
 
 
@@ -86,7 +87,7 @@ namespace KY_MES.Controllers
 
                     if (sizeFromDB != sizeFromSPI)
                     {
-                        throw new Exception($"Size não corresponde. Esperado: {sizeFromDB}, Recebido: {sizeFromSPI}");
+                        throw new SizeException($"Size não corresponde. Esperado: {sizeFromDB}, Recebido: {sizeFromSPI}");
                     }
                 }
             }
@@ -128,11 +129,11 @@ namespace KY_MES.Controllers
 
                     var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInputRemapped, getWipResponse));
                     if (okToTestResponse == null || !okToTestResponse.OkToStart)
-                        throw new Exception("Check PV failed");
+                        throw new CheckPVFailedException("Check PV failed");
 
                     var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInputRemapped, getWipResponse));
                     if (startWipResponse == null || !startWipResponse.Success)
-                        throw new Exception("start Wip failed");
+                        throw new StartWipException("start Wip failed");
 
                     int retryCount = 0;
                     int maxRetries = 10;
@@ -193,11 +194,11 @@ namespace KY_MES.Controllers
 
                         var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInputRemapped, getWipResponse));
                         if (okToTestResponse == null || !okToTestResponse.OkToStart)
-                            throw new Exception("Check PV failed");
+                            throw new CheckPVFailedException("Check PV failed");
 
                         var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInputRemapped, getWipResponse));
                         if (startWipResponse == null || !startWipResponse.Success)
-                            throw new Exception("start Wip failed");
+                            throw new StartWipException("start Wip failed");
 
                         int retryCount = 0;
                         int maxRetries = 10;
@@ -237,9 +238,6 @@ namespace KY_MES.Controllers
             {
                 if (sPIInputRemapped.Inspection.Machine.StartsWith("SS-DL"))
                 {
-
-
-
                     string? manufacturingArea = operationhistory.ManufacturingArea;
                     string suffix = "- Repair 01";
 
@@ -269,11 +267,11 @@ namespace KY_MES.Controllers
 
                     var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInputRemapped, getWipResponse));
                     if (okToTestResponse == null || !okToTestResponse.OkToStart)
-                        throw new Exception("Check PV failed");
+                        throw new CheckPVFailedException("Check PV failed");
 
                     var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInputRemapped, getWipResponse));
                     if (startWipResponse == null || !startWipResponse.Success)
-                        throw new Exception("start Wip failed");
+                        throw new StartWipException("start Wip failed");
 
                     completeWipResponse = await _mESService.CompleteWipPassAsync(
                         utils.ToCompleteWipPass(sPIInputRemapped, getWipResponse), getWipResponse.WipId.ToString()
@@ -284,7 +282,7 @@ namespace KY_MES.Controllers
 
                     var programFromAOI = sPIInputRemapped.Inspection.Program;
 
-                    if (programFromAOI == parentBom)
+                    if (programFromAOI.Contains("BOT"))
                     {
                         string? manufacturingArea = operationhistory.ManufacturingArea;
                         string suffix = "- Repair 01";
@@ -317,7 +315,47 @@ namespace KY_MES.Controllers
 
                         var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInputRemapped, getWipResponse));
                         if (startWipResponse == null || !startWipResponse.Success)
-                            throw new Exception("start Wip failed");
+                            throw new StartWipException("start Wip failed");
+
+                        completeWipResponse = await _mESService.CompleteWipPassAsync(
+                            utils.ToCompleteWipPass(sPIInputRemapped, getWipResponse), getWipResponse.WipId.ToString()
+                        );
+                    }
+
+                    else if (programFromAOI == parentBom)
+                    {
+                        string? manufacturingArea = operationhistory.ManufacturingArea;
+                        string suffix = "- Repair 01";
+
+                        string resourceMachineAOI = string.IsNullOrWhiteSpace(manufacturingArea)
+                            ? suffix
+                            : $"{manufacturingArea.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Last()} {suffix}";
+
+                        // Ir o ListDefect e verificar se retornam vazios ou nao
+                        foreach (var wip in wipIdInts)
+                        {
+                            var indictmentIds = await _mESService.GetIndictmentIds(wip.WipId);
+
+                            if (indictmentIds.Count > 0)
+                            {
+                                await _mESService.OkToStartRework(wip.WipId, resourceMachineAOI!, wip.SerialNumber);
+
+                                foreach (var indictmentId in indictmentIds)
+                                {
+                                    await _mESService.AddRework(wip.WipId, indictmentId);
+                                }
+
+                                await _mESService.CompleteRework(wipPrincipal);
+                            }
+                        }
+
+                        var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInputRemapped, getWipResponse));
+                        if (okToTestResponse == null || !okToTestResponse.OkToStart)
+                            throw new CheckPVFailedException("Check PV failed");
+
+                        var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInputRemapped, getWipResponse));
+                        if (startWipResponse == null || !startWipResponse.Success)
+                            throw new StartWipException("start Wip failed");
 
                         completeWipResponse = await _mESService.CompleteWipPassAsync(
                             utils.ToCompleteWipPass(sPIInputRemapped, getWipResponse), getWipResponse.WipId.ToString()
@@ -334,9 +372,7 @@ namespace KY_MES.Controllers
             }
 
             if (completeWipResponse == null)
-                throw new Exception("complete wip failed");
-
-
+                throw new CompleteWipException("complete wip failed");
 
             try
             {
