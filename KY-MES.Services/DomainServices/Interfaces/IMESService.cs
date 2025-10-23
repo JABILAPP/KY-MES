@@ -42,5 +42,8 @@ namespace KY_MES.Services.DomainServices.Interfaces
         Task<int> GetAssemblyId(int wipId);
 
 
+
+        // full operation complete pass 
+        Task<CompleteWipResponseModel> FullWipOpCompletePass(OperationInfo operationInfo, GetWipIdBySerialNumberResponseModels getWipResponse);
     }
 }

@@ -35,9 +35,9 @@ namespace KY_MES.Controllers
         public async Task<long> SPISendWipData(SPIInputModel sPIInput)
         {
             // auth method
-            var username = Environment.GetEnvironmentVariable("Username");
-            var password = Environment.GetEnvironmentVariable("Password");
-            await _mESService.SignInAsync(utils.SignInRequest(username, password));
+            //var username = Environment.GetEnvironmentVariable("Username");
+            //var password = Environment.GetEnvironmentVariable("Password");
+            //await _mESService.SignInAsync(utils.SignInRequest(username, password));
 
             // get history for production line
             var operationhistory = await _mESService.GetOperationInfoAsync(sPIInput.Inspection.Barcode);
@@ -59,10 +59,6 @@ namespace KY_MES.Controllers
             var wipIdInts = await _mESService.GetWipIds(serialNumber!);
 
             CompleteWipResponseModel? completeWipResponse = null;
-
-
-            
-            
 
 
             // CHECKAGEM DE ASSEMBLY PELO DICIONARIO PASSANDO O PROGRAM DO LOG, COLOCAR UM CONTAINS 
@@ -270,17 +266,26 @@ namespace KY_MES.Controllers
                         }
                     }
 
-                    var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInputRemapped, getWipResponse));
-                    if (okToTestResponse == null || !okToTestResponse.OkToStart)
-                        throw new CheckPVFailedException("Check PV failed");
 
-                    var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInputRemapped, getWipResponse));
-                    if (startWipResponse == null || !startWipResponse.Success)
-                        throw new StartWipException("start Wip failed");
+                    // var fullWipCompleteResponse = // operationhistory, getWipResponse, sPIInputRemapped
 
-                    completeWipResponse = await _mESService.CompleteWipPassAsync(
-                        utils.ToCompleteWipPass(sPIInputRemapped, getWipResponse), getWipResponse.WipId.ToString()
-                    );
+
+                    //var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInputRemapped, getWipResponse));
+                    //if (okToTestResponse == null || !okToTestResponse.OkToStart)
+                    //    throw new CheckPVFailedException("Check PV failed");
+
+                    //var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInputRemapped, getWipResponse));
+                    //if (startWipResponse == null || !startWipResponse.Success)
+                    //    throw new StartWipException("start Wip failed");
+
+
+
+                    completeWipResponse = await _mESService.FullWipOpCompletePass(operationhistory, getWipResponse);
+
+
+                    //completeWipResponse = await _mESService.CompleteWipPassAsync(
+                    //    utils.ToCompleteWipPass(sPIInputRemapped, getWipResponse), getWipResponse.WipId.ToString()
+                    //);
                 }
                 else
                 {
@@ -316,17 +321,20 @@ namespace KY_MES.Controllers
                             }
                         }
 
-                        var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInputRemapped, getWipResponse));
-                        if (okToTestResponse == null || !okToTestResponse.OkToStart)
-                            throw new CheckPVFailedException("Check PV failed");
+                        //var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInputRemapped, getWipResponse));
+                        //if (okToTestResponse == null || !okToTestResponse.OkToStart)
+                        //    throw new CheckPVFailedException("Check PV failed");
 
-                        var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInputRemapped, getWipResponse));
-                        if (startWipResponse == null || !startWipResponse.Success)
-                            throw new StartWipException("start Wip failed");
+                        //var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInputRemapped, getWipResponse));
+                        //if (startWipResponse == null || !startWipResponse.Success)
+                        //    throw new StartWipException("start Wip failed");
 
-                        completeWipResponse = await _mESService.CompleteWipPassAsync(
-                            utils.ToCompleteWipPass(sPIInputRemapped, getWipResponse), getWipResponse.WipId.ToString()
-                        );
+                        completeWipResponse = await _mESService.FullWipOpCompletePass(operationhistory, getWipResponse);
+
+
+                        //completeWipResponse = await _mESService.CompleteWipPassAsync(
+                        //    utils.ToCompleteWipPass(sPIInputRemapped, getWipResponse), getWipResponse.WipId.ToString()
+                        //);
                     }
 
                     else if (programFromAOI == parentBom)
@@ -356,17 +364,21 @@ namespace KY_MES.Controllers
                             }
                         }
 
-                        var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInputRemapped, getWipResponse));
-                        if (okToTestResponse == null || !okToTestResponse.OkToStart)
-                            throw new CheckPVFailedException("Check PV failed");
 
-                        var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInputRemapped, getWipResponse));
-                        if (startWipResponse == null || !startWipResponse.Success)
-                            throw new StartWipException("start Wip failed");
+                        completeWipResponse = await _mESService.FullWipOpCompletePass(operationhistory, getWipResponse);
 
-                        completeWipResponse = await _mESService.CompleteWipPassAsync(
-                            utils.ToCompleteWipPass(sPIInputRemapped, getWipResponse), getWipResponse.WipId.ToString()
-                        );
+
+                        //var okToTestResponse = await _mESService.OkToStartAsync(utils.ToOkToStart(sPIInputRemapped, getWipResponse));
+                        //if (okToTestResponse == null || !okToTestResponse.OkToStart)
+                        //    throw new CheckPVFailedException("Check PV failed");
+
+                        //var startWipResponse = await _mESService.StartWipAsync(utils.ToStartWip(sPIInputRemapped, getWipResponse));
+                        //if (startWipResponse == null || !startWipResponse.Success)
+                        //    throw new StartWipException("start Wip failed");
+
+                        //completeWipResponse = await _mESService.CompleteWipPassAsync(
+                        //    utils.ToCompleteWipPass(sPIInputRemapped, getWipResponse), getWipResponse.WipId.ToString()
+                        //);
 
                     }
                     else

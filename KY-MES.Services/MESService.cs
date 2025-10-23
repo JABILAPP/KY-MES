@@ -333,9 +333,6 @@ namespace KY_MES.Services
             }
         }
 
-
-
-
         public async Task<List<WipSerial>> GetWipIds(string serialNumber)
         {
             try
@@ -406,8 +403,6 @@ namespace KY_MES.Services
                 throw new Exception($"Erro ao pegar WipIds: {ex.Message}");
             }
         }
-
-
         public async Task OkToStartRework(int wipId, string resourceName, string serialNumber)
         {
             try
@@ -435,8 +430,6 @@ namespace KY_MES.Services
                 throw new Exception($"Erro ao Ok To Start para Rework: {ex.Message}");
             }
         }
-
-
         public async Task AddRework(int wipId, int indicmentId)
         {
             try
@@ -477,7 +470,6 @@ namespace KY_MES.Services
                 throw new Exception($"Erro ao Adicionar Rework: {ex.Message}");
             }
         }
-
         public async Task CompleteRework(int wipId)
         {
             try
@@ -503,7 +495,6 @@ namespace KY_MES.Services
                 throw new Exception($"Erro ao Ok To Start para Rework: {ex.Message}");
             }
         }
-
 
         public async Task AbourtStarted(int wipId)
         {
@@ -765,6 +756,44 @@ namespace KY_MES.Services
 
 
 
+
+
+        #region FullWipOperation
+        public async Task<CompleteWipResponseModel> FullWipOpCompletePass(OperationInfo operationInfo, GetWipIdBySerialNumberResponseModels getWipResponse)
+        {
+            try
+            {
+                var url = $"{MesBaseUrl}/api-external-api/api/Wips/FullPerformWipOperations";
+
+                var payload = new FullPerformWipOperationsRequest
+                {
+                    SiteName = "MANAUS",
+                    CustomerName = operationInfo.CustomerName,
+                    SerialNumber = operationInfo.SerialNumber,
+                    MaterialName = getWipResponse.MaterialName,
+                    ResourceName = operationInfo.Resource,
+                    StartDateTime = "",
+                    EndDateTime = "",
+                    IsSingleWipMode = false,
+                };
+
+                var json = JsonConvert.SerializeObject(payload);
+                using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+                var response = await _client.PostAsync(url, content);
+                response.EnsureSuccessStatusCode();
+
+                var responseContent = await response.Content.ReadAsStringAsync();
+                var completeWipResponse = JsonConvert.DeserializeObject<CompleteWipResponseModel>(responseContent);
+
+                return completeWipResponse;
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Erro ao Full Wip Complete: {ex.Message}");
+            }
+        }
+        #endregion
 
 
 
