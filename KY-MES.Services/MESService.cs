@@ -11,6 +11,7 @@ using KY_MES.Domain.V1.DTOs.AddAttributeModel;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Data.SqlClient;
+using KY_MES.Services.Exceptions;
 
 namespace KY_MES.Services
 {
@@ -790,7 +791,7 @@ namespace KY_MES.Services
             }
             catch (Exception ex)
             {
-                throw new Exception($"Erro ao Full Wip Complete: {ex.Message}");
+                throw new FullWipOperationPassException($"Erro ao Full Wip Complete: Step não configurado corretamente para esse produto");
             }
         }
         #endregion

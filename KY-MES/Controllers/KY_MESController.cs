@@ -2,6 +2,7 @@
 using KY_MES.Application.Utils;
 using KY_MES.Domain.V1.DTOs.InputModels;
 using KY_MES.Domain.V1.Interfaces;
+using KY_MES.Services.Exceptions;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 using System.Net;
@@ -61,6 +62,13 @@ namespace KY_MES.Controllers
                 return BadRequest(new
                 {
                     ErrorType = $"Tamanho da Memoria GB não é compativel com o FERT: {ex.Message}"
+                });
+            }
+            catch (FullWipOperationPassException ex)
+            {
+                return BadRequest(new
+                {
+                    ErrorType = $"Erro ao Full Wip Complete: Step não configurado corretamente para esse produto"
                 });
             }
             catch (StartWipException ex)

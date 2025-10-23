@@ -34,10 +34,6 @@ namespace KY_MES.Controllers
 
         public async Task<long> SPISendWipData(SPIInputModel sPIInput)
         {
-            // auth method
-            //var username = Environment.GetEnvironmentVariable("Username");
-            //var password = Environment.GetEnvironmentVariable("Password");
-            //await _mESService.SignInAsync(utils.SignInRequest(username, password));
 
             // get history for production line
             var operationhistory = await _mESService.GetOperationInfoAsync(sPIInput.Inspection.Barcode);
@@ -97,7 +93,7 @@ namespace KY_MES.Controllers
             if (sPIInputRemapped.Inspection.Result.Contains("NG"))
             {
                 // DIFERENCIAÇÃO DE INPUT PARA OS LOGS DE SPI 
-                if (sPIInputRemapped.Inspection.Machine.StartsWith("SS-DL"))
+                if (sPIInputRemapped.Inspection.Machine.StartsWith("SS-DL") || sPIInputRemapped.Inspection.Machine.StartsWith("SP-DL"))
                 {
 
                     // RESOURCE MACHINE PARA SPI 
@@ -237,7 +233,7 @@ namespace KY_MES.Controllers
             }
             else
             {
-                if (sPIInputRemapped.Inspection.Machine.StartsWith("SS-DL"))
+                if (sPIInputRemapped.Inspection.Machine.StartsWith("SS-DL") || sPIInputRemapped.Inspection.Machine.StartsWith("SP-DL"))
                 {
                     string? manufacturingArea = operationhistory.ManufacturingArea;
                     string suffix = "- Repair 01";
