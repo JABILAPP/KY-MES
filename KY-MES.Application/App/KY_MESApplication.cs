@@ -61,10 +61,8 @@ namespace KY_MES.Controllers
             CompleteWipResponseModel? completeWipResponse = null;
 
 
-            // Comparação de BOM TOP para o Program da AOI 
-            var assemblyId = await _mESService.GetAssemblyId(wipPrincipal);
-            var parentBom = await _mESService.GetProgramInBom(assemblyId);
-            var parentBomSPI = await _mESService.GetProgramInBomSPI(assemblyId);
+            
+            
 
 
             // CHECKAGEM DE ASSEMBLY PELO DICIONARIO PASSANDO O PROGRAM DO LOG, COLOCAR UM CONTAINS 
@@ -72,7 +70,12 @@ namespace KY_MES.Controllers
 
             if (programFromSPI.Contains("GB"))
             {
+                // Comparação de BOM TOP para o Program da AOI 
+                var assemblyId = await _mESService.GetAssemblyId(wipPrincipal);
+                var parentBomSPI = await _mESService.GetProgramInBomSPI(assemblyId);
+
                 var assemblyModelMemory = await ObterTypeModelMemoryAsync();
+
 
                 if (!assemblyModelMemory.TryGetValue(parentBomSPI, out var sizeFromDB))
                 {
@@ -164,6 +167,9 @@ namespace KY_MES.Controllers
                 else
                 {
                     var programFromAOI = sPIInputRemapped.Inspection.Program;
+                    // Comparação de BOM TOP para o Program da AOI 
+                    var assemblyId = await _mESService.GetAssemblyId(wipPrincipal);
+                    var parentBom = await _mESService.GetProgramInBom(assemblyId);
                     if (programFromAOI == parentBom)
                     {
                         // RESOURCE MACHINE PARA SPI 
@@ -221,7 +227,6 @@ namespace KY_MES.Controllers
                                 {
                                     throw new Exception($"Failed to add defect after {maxRetries} retries. Message: {ex.Message}");
                                 }
-                                await Task.Delay(500);
                             }
                         }
                         while (completeWipResponse == null && retryCount < maxRetries);
@@ -279,7 +284,9 @@ namespace KY_MES.Controllers
                 }
                 else
                 {
-
+                    // Comparação de BOM TOP para o Program da AOI 
+                    var assemblyId = await _mESService.GetAssemblyId(wipPrincipal);
+                    var parentBom = await _mESService.GetProgramInBom(assemblyId);
                     var programFromAOI = sPIInputRemapped.Inspection.Program;
 
                     if (programFromAOI.Contains("BOT"))
@@ -376,9 +383,9 @@ namespace KY_MES.Controllers
 
             try
             {
-                var units = await BuildInspectionUnitRecords(sPIInputRemapped);
-                var opInfo = await _mESService.GetOperationInfoAsync(sPIInputRemapped.Inspection.Barcode!);
-                var manufacturingArea = opInfo?.ManufacturingArea;
+                var units = await BuildInspectionUnitRecords(sPIInputRemapped, operationhistory);
+                //var opInfo = await _mESService.GetOperationInfoAsync(sPIInputRemapped.Inspection.Barcode!);
+                var manufacturingArea = operationhistory?.ManufacturingArea;
 
                 var run = new InspectionRun
                 {
@@ -397,6 +404,7 @@ namespace KY_MES.Controllers
 
                 var runId = await _repo.SaveSpiRunAsync(run, units);
                 return runId;
+                //return 0;
             
             }
             catch (Exception ex)
@@ -433,8 +441,10 @@ namespace KY_MES.Controllers
                 throw new Exception("Diferent programs in assembly");
             }
 
+            var operationhistory = await _mESService.GetOperationInfoAsync(input.Inspection.Barcode);
 
-            var units = await BuildInspectionUnitRecords(input);
+
+            var units = await BuildInspectionUnitRecords(input, operationhistory);
 
             await _mESService.AddAttribute(input);
 
@@ -469,34 +479,31 @@ namespace KY_MES.Controllers
 
 
 
-        public async Task<List<InspectionUnitRecord>> BuildInspectionUnitRecords(SPIInputModel input)
+        public async Task<List<InspectionUnitRecord>> BuildInspectionUnitRecords(SPIInputModel sPIInputRemapped, OperationInfo operationhistory)
         {
-            if (input is null) throw new ArgumentNullException(nameof(input));
-            if (input.Inspection is null) throw new ArgumentException("Inspection é obrigatório.", nameof(input));
 
             // 1) Autentica no MES
-            var username = Environment.GetEnvironmentVariable("Username");
-            var password = Environment.GetEnvironmentVariable("Password");
-            await _mESService.SignInAsync(utils.SignInRequest(username, password));
+            //var username = Environment.GetEnvironmentVariable("Username");
+            //var password = Environment.GetEnvironmentVariable("Password");
+            //await _mESService.SignInAsync(utils.SignInRequest(username, password));
 
-            // 2) Normaliza/deduplica defeitos no input
-            SpiDefectUtils.KeepOneDefectPerCRDIgnoringEmptyComp(input);
+            //// 2) Normaliza/deduplica defeitos no input
+            //SpiDefectUtils.KeepOneDefectPerCRDIgnoringEmptyComp(input);
 
-            // 3) Busca área de manufatura pelo barcode do run
-            var operationhistory = await _mESService.GetOperationInfoAsync(input.Inspection.Barcode);
+            //// 3) Busca área de manufatura pelo barcode do run
             var manufacturingArea = operationhistory?.ManufacturingArea;
 
-            var remapped = await MapearDefeitosSPICriandoNovo(input);
+            //var remapped = await MapearDefeitosSPICriandoNovo(input);
 
             // 4) Seleciona um barcode base 
-            var baseUnitBarcode = remapped.Board?
+            var baseUnitBarcode = sPIInputRemapped.Board?
                 .FirstOrDefault(b => !string.IsNullOrWhiteSpace(b.Barcode))?.Barcode;
 
             Dictionary<int, string> positionToSerial = null;
 
             try
             {
-                var wipInfos = await _mESService.GetPanelWipInfoAsync(input.Inspection.Barcode);
+                var wipInfos = await _mESService.GetPanelWipInfoAsync(sPIInputRemapped.Inspection.Barcode);
                 var wipInfo = wipInfos?.FirstOrDefault(w => w.Panel?.PanelWips != null && w.Panel.PanelWips.Any());
 
                 if (wipInfo?.Panel?.PanelWips != null && wipInfo.Panel.PanelWips.Any())
@@ -511,10 +518,10 @@ namespace KY_MES.Controllers
             {
             }
 
-            var runMeta = remapped.Inspection;
+            var runMeta = sPIInputRemapped.Inspection;
             var units = new List<InspectionUnitRecord>();
 
-            foreach (var b in remapped.Board ?? Enumerable.Empty<Board>())
+            foreach (var b in sPIInputRemapped.Board ?? Enumerable.Empty<Board>())
             {
                 var arrayIdx = ParseArrayIndex(b.Array);
 

@@ -1,4 +1,5 @@
-﻿using KY_MES.Application.Utils;
+﻿using KY_MES.Application;
+using KY_MES.Application.Utils;
 using KY_MES.Domain.V1.DTOs.InputModels;
 using KY_MES.Domain.V1.Interfaces;
 using Microsoft.AspNetCore.Cors;
@@ -39,13 +40,41 @@ namespace KY_MES.Controllers
             {
                 return BadRequest(new
                 {
-                    ErrorType = "PCB não está na rota correta"
+                    ErrorType = $"PCB não está na rota correta: {ex.Message}"
                 });
             }catch (BomProgramFailException ex)
             {
                 return BadRequest(new
                 {
-                    ErrorType = "Programa diferente para esse produto"
+                    ErrorType = $"Programa diferente para esse produto {ex.Message}"
+                });
+            }
+            catch (FertSpiException ex)
+            {
+                return BadRequest(new
+                {
+                    ErrorType = $"FERT não encontrado no banco de dados: {ex.Message}"
+                });
+            }
+            catch (SizeException ex)
+            {
+                return BadRequest(new
+                {
+                    ErrorType = $"Tamanho da Memoria GB não é compativel com o FERT: {ex.Message}"
+                });
+            }
+            catch (StartWipException ex)
+            {
+                return BadRequest(new
+                {
+                    ErrorType = $"Erro ao Iniciar o STEP na Maquina, verificar a rota do produto: {ex.Message}"
+                });
+            }
+            catch (CompleteWipException ex)
+            {
+                return BadRequest(new
+                {
+                    ErrorType = $"Erro ao finalizar o registrar o Resultado no MES: {ex.Message}"
                 });
             }
             catch (Exception ex)
