@@ -8,6 +8,8 @@ using System.Threading.Tasks;
 
 namespace KY_MES.Services.DomainServices.Interfaces
 {
+ 
+
     public interface IMESService
     {
         Task SignInAsync(SignInRequestModel signInRequestModel);
@@ -40,6 +42,8 @@ namespace KY_MES.Services.DomainServices.Interfaces
         Task<string> GetProgramInBom(int assemblyId);
         Task<string> GetProgramInBomSPI(int assemblyId);
         Task<int> GetAssemblyId(int wipId);
+
+
 
 
     }
