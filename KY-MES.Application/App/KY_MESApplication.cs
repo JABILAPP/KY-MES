@@ -162,7 +162,7 @@ namespace KY_MES.Controllers
                     // Comparação de BOM TOP para o Program da AOI 
                     var assemblyId = await _mESService.GetAssemblyId(wipPrincipal);
                     var parentBom = await _mESService.GetProgramInBom(assemblyId);
-                    if (programFromAOI == parentBom)
+                    if (programFromAOI == parentBom || programFromAOI.Contains("BOT"))
                     {
                         // RESOURCE MACHINE PARA SPI 
                         string? manufacturingArea = operationhistory.ManufacturingArea;
