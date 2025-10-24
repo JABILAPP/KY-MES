@@ -532,7 +532,6 @@ namespace KY_MES.Services
             resp.EnsureSuccessStatusCode();
 
             var body = await resp.Content.ReadAsStringAsync();
-
             var root = JObject.Parse(body);
 
             var wips = (JArray?)root["Wips"];
@@ -544,7 +543,15 @@ namespace KY_MES.Services
                 return null;
 
             var opHistories = (JArray?)wip["OperationHistories"];
-            var op = opHistories?.FirstOrDefault();
+
+            var op = opHistories?
+                .FirstOrDefault(x =>
+                {
+                    var area = (string?)x?["ManufacturingArea"];
+                    return area != null && area.IndexOf("RIO", StringComparison.OrdinalIgnoreCase) >= 0;
+                })
+                ?? opHistories?.FirstOrDefault();
+
             if (op == null)
                 return new OperationInfo
                 {
@@ -553,7 +560,6 @@ namespace KY_MES.Services
                     CustomerName = (string?)wip["CustomerName"]
                 };
 
-            // Monta o objeto único
             var result = new OperationInfo
             {
                 // Do Wip
@@ -561,7 +567,6 @@ namespace KY_MES.Services
                 WipId = (int?)wip["WipId"],
                 CustomerName = (string?)wip["CustomerName"],
 
-                // Do OperationHistory 
                 ManufacturingArea = (string?)op["ManufacturingArea"],
                 RouteStepId = (int?)op["RouteStepId"],
                 RouteStepName = (string?)op["RouteStepName"],
