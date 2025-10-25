@@ -1,3 +1,4 @@
+using KY_MES.Application.Helpers;
 using KY_MES.Controllers;
 using KY_MES.Domain.V1.Interfaces;
 using KY_MES.Infra;
@@ -34,6 +35,7 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddSingleton<IMESService, MESService>();
 builder.Services.AddScoped<IKY_MESApplication, KY_MESApplication>();
 builder.Services.AddScoped<ISpiRepository, SpiRepository>();
+builder.Services.AddSingleton<SPIHelpers>();
 
 var app = builder.Build();
 

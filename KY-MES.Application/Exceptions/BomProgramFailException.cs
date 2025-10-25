@@ -1,4 +1,4 @@
-﻿namespace KY_MES.Application.Utils
+﻿namespace KY_MES.Application.Exceptions
 {
     public class BomProgramFailException : Exception
     {

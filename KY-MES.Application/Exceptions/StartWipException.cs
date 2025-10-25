@@ -1,4 +1,4 @@
-namespace KY_MES.Application;
+namespace KY_MES.Application.Exceptions;
 
 public class StartWipException : Exception
 {
