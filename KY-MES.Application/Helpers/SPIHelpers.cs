@@ -7,6 +7,11 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using KY_MES.Application.Utils;
 using AppUtils = KY_MES.Application.App.Utils.Utils;
+using KY_MES.Services;
+using KY_MES.Domain.ModelType;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Data.SqlClient;
+using Dapper;
 
 namespace KY_MES.Application.Helpers
 {
@@ -14,10 +19,14 @@ namespace KY_MES.Application.Helpers
     {
         private readonly AppUtils _utils;
         private static readonly SemaphoreSlim NormalizeLock = new SemaphoreSlim(1, 1);
+        private readonly IMESService _mESService;
+        private readonly IConfiguration _configuration;
 
-        public SPIHelpers()
+        public SPIHelpers(IMESService mESService, IConfiguration configuration)
         {
             _utils = new AppUtils();
+            _mESService = mESService;
+            _configuration = configuration;
         }
 
         // ========== Normalização e Mapeamento de Defeitos ==========
@@ -67,29 +76,69 @@ namespace KY_MES.Application.Helpers
 
             var program = input.Inspection.Program ?? string.Empty;
 
-            // Só valida se aparecer GB no program
+            // Só valida se aparecer "GB" no program (case-insensitive)
             if (program.IndexOf("GB", StringComparison.OrdinalIgnoreCase) < 0)
                 return;
 
-            var sizeFromProgram = ExtractSizeFromProgram(program);
+            // Extrai size do Program usando o mesmo padrão do legado: "-(ddd)(GB)?-"
+            var sizeFromProgram = ExtractAndNormalizeSizeFromProgram(program);
             if (string.IsNullOrEmpty(sizeFromProgram))
-                return; 
+                return; // Sem size parseável no Program -> mantém comportamento atual (sai silenciosamente)
 
-            var mes = mesOverride ?? throw new ArgumentNullException(nameof(mesOverride), "Forneça IMESService para validação de SIZE/GB.");
+            var mes = mesOverride ?? _mESService ?? throw new ArgumentNullException(nameof(mesOverride), "IMESService indisponível para validação de SIZE/GB.");
 
-            // Busca o FERT (programa do SPI no BOM) via MES
+            // Busca o FERT/BOM no MES
             var assemblyId = await mes.GetAssemblyId(wipId);
-            var fert = await mes.GetProgramInBomSPI(assemblyId) ?? string.Empty;
+            var fert = await mes.GetProgramInBomSPI(assemblyId);
+            if (string.IsNullOrWhiteSpace(fert))
+                throw new FertSpiException("FERT do BOM do SPI não retornado pelo MES.");
 
-            var sizeFromFert = ExtractSizeFromFert(fert);
+            // Carrega dicionário de modelo->size, mantendo a mesma regra anterior
+            var assemblyModelMemory = await ObterTypeModelMemoryAsync();
 
-            // Regras:
-            // - Se os dois sizes forem extraídos e diferentes -> erro
-            // - Se não deu pra extrair do FERT -> passa (comportamento "soft", ajustável)
-            if (!string.IsNullOrEmpty(sizeFromFert) && !string.Equals(sizeFromProgram, sizeFromFert, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new SizeException($"Program size mismatch: SPI={sizeFromProgram}G vs FERT={sizeFromFert}G");
-            }
+            if (!assemblyModelMemory.TryGetValue(fert, out var sizeFromDB))
+                throw new FertSpiException($"FERT {fert} não encontrado no dicionário");
+
+            // Normaliza size do dicionário também
+            var sizeFromDictionary = NormalizeSize(sizeFromDB);
+
+            // Compara normalizado (ex.: "128G")
+            if (!sizeFromDictionary.Equals(sizeFromProgram, StringComparison.OrdinalIgnoreCase))
+                throw new SizeException($"Size não corresponde. Esperado: {sizeFromDictionary}, Recebido: {sizeFromProgram}");
+        }
+
+        private static string ExtractAndNormalizeSizeFromProgram(string program)
+        {
+            if (string.IsNullOrEmpty(program))
+                return string.Empty;
+
+            // Mesmo regex do legado, com case-insensitive
+            var match = System.Text.RegularExpressions.Regex.Match(
+                program,
+                @"-(\d{3})(?:GB)?-",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase
+            );
+
+            if (!match.Success)
+                return string.Empty;
+
+            var numeric = match.Groups[1].Value; // "128", "256", etc.
+            return NormalizeSize(numeric);
+        }
+
+        private static string NormalizeSize(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+                return string.Empty;
+
+            var cleaned = raw.Trim().ToUpperInvariant();
+
+            // Aceita "128", "128G", "128GB"; normaliza para "128G"
+            cleaned = cleaned.Replace("GB", "", StringComparison.OrdinalIgnoreCase).Replace("G", "", StringComparison.OrdinalIgnoreCase).Trim();
+
+            // Garante 3 dígitos se for numérico de 2-3 dígitos (ajuste se precisar)
+            // Opcional: validar faixas esperadas (064, 128, 256, 512)
+            return $"{cleaned}G";
         }
 
         private static string ExtractSizeFromProgram(string program)
@@ -423,5 +472,27 @@ namespace KY_MES.Application.Helpers
             var padded = newNumber.ToString(new string('0', digits.Length), CultureInfo.InvariantCulture);
             return prefix + padded;
         }
+
+
+        public async Task<Dictionary<string, string>> ObterTypeModelMemoryAsync()
+        {
+            var connectionString = _configuration.GetConnectionString("DefaultConnection");
+
+            using (var connection = new SqlConnection(connectionString))
+            {
+                await connection.OpenAsync();
+
+                var query = "SELECT [FERT], [SIZE] FROM FERTMAP";
+
+                var defectMap = await connection.QueryAsync<ModelTypeMemory>(query);
+
+                return defectMap.ToDictionary(
+                    x => x.FERT,
+                    x => x.SIZE,
+                    StringComparer.OrdinalIgnoreCase
+                );
+            }
+        }
+
     }
 }
