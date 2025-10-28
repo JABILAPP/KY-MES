@@ -239,6 +239,8 @@ namespace KY_MES.Services
 
                 if (!response.IsSuccessStatusCode)
                 {
+                    await AbourtStarted(WipId);
+
                     var body = await response.Content.ReadAsStringAsync();
                     throw new AddDefectException($"Erro ao executar AddDefect (COMPONENTES E NEM HALMBIM ESTÁ SENDO ACEITO PELO MES)");
                 }

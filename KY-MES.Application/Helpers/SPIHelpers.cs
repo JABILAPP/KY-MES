@@ -12,6 +12,7 @@ using KY_MES.Domain.ModelType;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Data.SqlClient;
 using Dapper;
+using KY_MES.Domain.DefectMap;
 
 namespace KY_MES.Application.Helpers
 {
@@ -54,17 +55,47 @@ namespace KY_MES.Application.Helpers
             }
         }
 
+        //public async Task<SPIInputModel> MapearDefeitosSPICriandoNovo(SPIInputModel spi, CancellationToken ct = default)
+        //{
+        //    await NormalizeLock.WaitAsync(ct);
+        //    try
+        //    {
+        //        return DeepClone(spi);
+        //    }
+        //    finally
+        //    {
+        //        NormalizeLock.Release();
+        //    }
+        //}
+
         public async Task<SPIInputModel> MapearDefeitosSPICriandoNovo(SPIInputModel spi, CancellationToken ct = default)
         {
-            await NormalizeLock.WaitAsync(ct);
-            try
+            if (spi is null) throw new ArgumentNullException(nameof(spi));
+
+            var novo = DeepClone(spi);
+
+            var defectMap = await ObterDefectMapAsync(ct);
+
+            if (novo.Board != null)
             {
-                return DeepClone(spi);
+                foreach (var board in novo.Board)
+                {
+                    if (board?.Defects == null) continue;
+
+                    foreach (var d in board.Defects)
+                    {
+                        var code = d?.Defect;
+                        if (string.IsNullOrWhiteSpace(code)) continue;
+
+                        if (defectMap.TryGetValue(code.Trim(), out var mappedDesc) &&
+                            !string.IsNullOrWhiteSpace(mappedDesc))
+                        {
+                            d.Defect = mappedDesc;
+                        }
+                    }
+                }
             }
-            finally
-            {
-                NormalizeLock.Release();
-            }
+            return novo;
         }
 
         // ========== Validações ==========
@@ -140,31 +171,6 @@ namespace KY_MES.Application.Helpers
             // Opcional: validar faixas esperadas (064, 128, 256, 512)
             return $"{cleaned}G";
         }
-
-        private static string ExtractSizeFromProgram(string program)
-        {
-            // Captura números de "GB" (128GB, 256GB)
-            var m = Regex.Match(program, @"[-_\. ](\d{2,3})\s*GB\b", RegexOptions.IgnoreCase);
-            if (!m.Success)
-                m = Regex.Match(program, @"\b(\d{2,3})\s*GB\b", RegexOptions.IgnoreCase);
-
-            return m.Success ? m.Groups[1].Value : string.Empty;
-        }
-
-
-        private static string ExtractSizeFromFert(string fert)
-        {
-            if (string.IsNullOrWhiteSpace(fert))
-                return string.Empty;
-
-            var m = Regex.Match(fert, @"\b(\d{2,3})\s*G[B]?\b", RegexOptions.IgnoreCase);
-            if (!m.Success)
-                m = Regex.Match(fert, @"[-_\. ](\d{2,3})(?:\D|$)", RegexOptions.IgnoreCase);
-
-            return m.Success ? m.Groups[1].Value : string.Empty;
-        }
-
-
 
         public async Task ValidateProgramVsBomOrBotForAOI(SPIInputModel input, int wipId, IMESService mes)
         {
@@ -493,6 +499,32 @@ namespace KY_MES.Application.Helpers
                 );
             }
         }
+
+        public async Task<Dictionary<string, string>> ObterDefectMapAsync(CancellationToken ct = default)
+        {
+            var connectionString = _configuration.GetConnectionString("DefaultConnection");
+
+            using var connection = new SqlConnection(connectionString);
+            await connection.OpenAsync(ct);
+
+            const string query = @"
+            SELECT [DEFECTCODE], [DESCRIPTION]
+            FROM [KY-MES].[dbo].[DEFECTMAP]";
+
+            var rows = await connection.QueryAsync<DefectMapEntity>(new CommandDefinition(query, cancellationToken: ct));
+
+            var dict = rows
+                .Where(x => !string.IsNullOrWhiteSpace(x.DEFECTCODE))
+                .ToDictionary(
+                    x => x.DEFECTCODE.Trim(),
+                    x => (x.DESCRIPTION ?? string.Empty).Trim(),
+                    StringComparer.OrdinalIgnoreCase
+                );
+
+            return dict;
+        }
+
+
 
     }
 }

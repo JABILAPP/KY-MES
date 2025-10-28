@@ -142,43 +142,6 @@ namespace KY_MES.Application.App.Utils
             };
         }
 
-        public async Task<CompleteWipResponseModel> AddDefectToCompleteWip(Task<AddDefectResponseModel> addDefectResponseTask)
-        {
-            //var addDefectResponseAwiated = await addDefectResponseTask;
-            //var addDefectResponse = addDefectResponseAwiated ?? throw new Exception("AddDefectResponse is null");
-
-            //return new CompleteWipResponseModel
-            //{
-            //    WipInQueueRouteSteps = new List<WipInQueueRouteStep>
-            //    {
-            //        new WipInQueueRouteStep
-            //        {
-            //            SerialNumber = addDefectResponse.Id.ToString(),
-            //            InQueueRouteStep = new List<InQueueRouteStep>
-            //            {
-            //                new InQueueRouteStep
-            //                {
-            //                    RouteStepId = addDefectResponse.Id,
-            //                    RouteStepName = addDefectResponse.MaterialName
-            //                }
-            //            }
-            //        }
-            //    },
-            //    ResponseMessages = new List<string>
-            //    {
-            //        addDefectResponse.Status,
-            //        addDefectResponse.PassStatus
-            //    },
-            //    Document = new Document
-            //    {
-            //        Model = new List<object> { addDefectResponse.MaterialName },
-            //        ErrorMessage = addDefectResponse.Status
-            //    }
-            //};
-
-            return new CompleteWipResponseModel();
-        }
-
 
         public CompleteWipPassRequestModel ToCompleteWipPass(SPIInputModel spi, GetWipIdBySerialNumberResponseModels getWip)
         {
@@ -187,18 +150,5 @@ namespace KY_MES.Application.App.Utils
                 SerialNumber = spi.Inspection.Barcode
             };
         }
-        
-
-        
-
-
-
- 
-
-
-
-
-
-
     }
 }
