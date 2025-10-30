@@ -6,13 +6,14 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using KY_MES.Application.Utils;
-using AppUtils = KY_MES.Application.App.Utils.Utils;
+using AppUtils = KY_MES.Application.App.Utils.UtilsModel;
 using KY_MES.Services;
 using KY_MES.Domain.ModelType;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Data.SqlClient;
 using Dapper;
 using KY_MES.Domain.DefectMap;
+using BomProgramFailException = KY_MES.Application.Exceptions.BomProgramFailException;
 
 namespace KY_MES.Application.Helpers
 {
@@ -254,13 +255,13 @@ namespace KY_MES.Application.Helpers
             int maxRetries,
             int delayMs)
         {
-            
+
             int retry = 0;
             while (true)
             {
                 try
                 {
-                    await addDefectCallFromMes(); 
+                    await addDefectCallFromMes();
                     var complete = await completeWipAfterAdd();
                     return complete;
                 }

@@ -1,13 +1,12 @@
-﻿using System;
-using System.Threading.Tasks;
-using KY_MES.Application;
-using KY_MES.Application.App.Utils;
-using KY_MES.Application.Exceptions;
+﻿using KY_MES.Application.Exceptions;
 using KY_MES.Application.Helpers;
 using KY_MES.Domain.V1.DTOs.InputModels;
-using KY_MES.Domain.V1.DTOs.OutputModels;
 using KY_MES.Domain.V1.Interfaces;
 using KY_MES.Services.DomainServices.Interfaces;
+using CheckPVFailedException = KY_MES.Application.Exceptions.CheckPVFailedException;
+//using CompleteWipException = KY_MES.Application.CompleteWipException;
+using StartWipException = KY_MES.Application.Exceptions.StartWipException;
+using UtilsModel = KY_MES.Application.App.Utils.UtilsModel;
 
 namespace KY_MES.Controllers
 {
@@ -16,14 +15,14 @@ namespace KY_MES.Controllers
         private readonly IMESService _mes;
         private readonly ISpiRepository _repo;
         private readonly SPIHelpers _helpers;
-        private readonly Utils _utils;
+        private readonly UtilsModel _utils;
 
         public KY_MESApplication(IMESService mes, ISpiRepository repo, SPIHelpers helpers)
         {
             _mes = mes;
             _repo = repo;
             _helpers = helpers;
-            _utils = new Utils();
+            _utils = new UtilsModel();
         }
 
         public async Task<long> SPISendWipData(SPIInputModel input)
@@ -49,6 +48,9 @@ namespace KY_MES.Controllers
             var isNg = remapped.Inspection.Result?.IndexOf("NG", StringComparison.OrdinalIgnoreCase) >= 0;
             var isSPIMachine = _helpers.IsSPIMachine(remapped.Inspection.Machine);
 
+            CompleteWipResponseModel? completeWipResponse = null;
+
+
             if (isNg)
             {
                 if (isSPIMachine)
@@ -65,7 +67,7 @@ namespace KY_MES.Controllers
 
                     var complete = await _helpers.TryAddDefectWithRetry(
                         () => _mes.AddDefectAsync(_utils.ToAddDefect(remapped, getWip), wipPrincipal),
-                        maxRetries: 10,
+                        maxRetries: 2,
                         delayMs: 500
                     );
                     if (complete == null) throw new CompleteWipException("complete wip failed");
@@ -86,7 +88,7 @@ namespace KY_MES.Controllers
 
                     var complete = await _helpers.TryAddDefectWithRetry(
                         () => _mes.AddDefectAsync(_utils.ToAddDefect(remapped, getWip), wipPrincipal),
-                        maxRetries: 10,
+                        maxRetries: 2,
                         delayMs: 500
                     );
                     if (complete == null) throw new CompleteWipException("complete wip failed");
@@ -99,9 +101,20 @@ namespace KY_MES.Controllers
                     // OK para SS-DL / SP-DL (SPI)
                     var resourceMachine = _helpers.BuildResourceMachine(opHistory?.ManufacturingArea, "- Repair 01");
                     await _helpers.ExecutarReworkSeNecessario(_mes, wipIds, resourceMachine, wipPrincipal);
+                    var resourceFromLog = remapped.Inspection.Machine;
 
-                    var complete = await _mes.FullWipOpCompletePass(opHistory, getWip);
-                    if (complete == null) throw new CompleteWipException("complete wip failed");
+
+                    var ok = await _mes.OkToStartAsync(_utils.ToOkToStart(remapped, getWip));
+                    if (ok == null || !ok.OkToStart) throw new CheckPVFailedException("Check PV failed");
+
+                    var start = await _mes.StartWipAsync(_utils.ToStartWip(remapped, getWip));
+                    if (start == null || !start.Success) throw new StartWipException("start Wip failed");
+
+
+                    completeWipResponse = await _mes.CompleteWipPassAsync(
+                        _utils.ToCompleteWipPass(remapped, getWip), getWip.WipId.ToString()
+                    );
+
                 }
                 else
                 {
@@ -111,8 +124,22 @@ namespace KY_MES.Controllers
                     var resourceMachine = _helpers.BuildResourceMachine(opHistory?.ManufacturingArea, "- Repair 01");
                     await _helpers.ExecutarReworkSeNecessario(_mes, wipIds, resourceMachine, wipPrincipal);
 
-                    var complete = await _mes.FullWipOpCompletePass(opHistory, getWip);
-                    if (complete == null) throw new CompleteWipException("complete wip failed");
+                    var resourceFromLog = remapped.Inspection.Machine;
+
+                    var ok = await _mes.OkToStartAsync(_utils.ToOkToStart(remapped, getWip));
+                    if (ok == null || !ok.OkToStart) throw new CheckPVFailedException("Check PV failed");
+
+                    var start = await _mes.StartWipAsync(_utils.ToStartWip(remapped, getWip));
+                    if (start == null || !start.Success) throw new StartWipException("start Wip failed");
+
+
+                    completeWipResponse = await _mes.CompleteWipPassAsync(
+                        _utils.ToCompleteWipPass(remapped, getWip), getWip.WipId.ToString()
+                    );
+
+
+                    //var complete = await _mes.CompleteWipPassAsync(opHistory, getWip, resourceFromLog);
+                    //if (complete == null) throw new CompleteWipException("complete wip failed");
                 }
             }
 
@@ -150,5 +177,9 @@ namespace KY_MES.Controllers
             var runId = await _repo.SaveSpiRunAsync(run, units);
             return runId;
         }
+
+
+
+
     }
 }

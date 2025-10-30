@@ -4,7 +4,7 @@ using System.Collections.Generic;
 
 namespace KY_MES.Application.App.Utils
 {
-    public class Utils
+    public class UtilsModel
     {
         public SignInRequestModel SignInRequest(string username, string password)
         {
