@@ -30,6 +30,7 @@ namespace KY_MES.Domain.V1.DTOs.InputModels
         public string? ManufacturingArea { get; set; }
         public List<NormalizedDefect> Defects { get; set; } = new();
         //public string? Pallet { get; set; }
+         public string? Fert { get; set; }
     }
 
     public class NormalizedDefect
@@ -55,9 +56,10 @@ namespace KY_MES.Domain.V1.DTOs.InputModels
         public DateTimeOffset? EndTime { get; set; }
         public string? ManufacturingArea { get; set; }
         public string? RawJson { get; set; }
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; } = DateTime.Now;
         public List<InspectionUnit> Units { get; set; } = new();
         //public string? Pallet { get; set; }
+        public string? Fert { get; set; }
     }
 
     public class InspectionUnit
@@ -77,6 +79,7 @@ namespace KY_MES.Domain.V1.DTOs.InputModels
         public InspectionRun Run { get; set; } = null!;
         public List<InspectionDefect> Defects { get; set; } = new();
         //public string? Pallet { get; set; }
+        public string? Fert { get; set; }
     }
 
     public class InspectionDefect
@@ -89,6 +92,7 @@ namespace KY_MES.Domain.V1.DTOs.InputModels
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public InspectionUnit Unit { get; set; } = null!;
         //public string? Pallet { get; set; }
+        public string? Fert { get; set; }
     }
     
 

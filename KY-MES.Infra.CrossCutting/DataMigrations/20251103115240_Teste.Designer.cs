@@ -4,6 +4,7 @@ using KY_MES.Infra.CrossCutting.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace KY_MES.Infra.CrossCutting.DataMigrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251103115240_Teste")]
+    partial class Teste
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -39,10 +42,6 @@ namespace KY_MES.Infra.CrossCutting.DataMigrations
 
                     b.Property<string>("DefectCode")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("Fert")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
@@ -75,10 +74,6 @@ namespace KY_MES.Infra.CrossCutting.DataMigrations
 
                     b.Property<DateTimeOffset?>("EndTime")
                         .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("Fert")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("InspectionBarcode")
                         .HasMaxLength(100)
@@ -141,10 +136,6 @@ namespace KY_MES.Infra.CrossCutting.DataMigrations
 
                     b.Property<DateTimeOffset?>("EndTime")
                         .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("Fert")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
 
                     b.Property<long>("InspectionRunId")
                         .HasColumnType("bigint");

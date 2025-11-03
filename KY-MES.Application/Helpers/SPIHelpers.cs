@@ -108,33 +108,28 @@ namespace KY_MES.Application.Helpers
 
             var program = input.Inspection.Program ?? string.Empty;
 
-            // Só valida se aparecer "GB" no program (case-insensitive)
             if (program.IndexOf("GB", StringComparison.OrdinalIgnoreCase) < 0)
                 return;
 
-            // Extrai size do Program usando o mesmo padrão do legado: "-(ddd)(GB)?-"
             var sizeFromProgram = ExtractAndNormalizeSizeFromProgram(program);
             if (string.IsNullOrEmpty(sizeFromProgram))
-                return; // Sem size parseável no Program -> mantém comportamento atual (sai silenciosamente)
+                return;
 
             var mes = mesOverride ?? _mESService ?? throw new ArgumentNullException(nameof(mesOverride), "IMESService indisponível para validação de SIZE/GB.");
 
-            // Busca o FERT/BOM no MES
+            // FERT/BOM no MES
             var assemblyId = await mes.GetAssemblyId(wipId);
             var fert = await mes.GetProgramInBomSPI(assemblyId);
             if (string.IsNullOrWhiteSpace(fert))
                 throw new FertSpiException("FERT do BOM do SPI não retornado pelo MES.");
 
-            // Carrega dicionário de modelo->size, mantendo a mesma regra anterior
             var assemblyModelMemory = await ObterTypeModelMemoryAsync();
 
             if (!assemblyModelMemory.TryGetValue(fert, out var sizeFromDB))
                 throw new FertSpiException($"FERT {fert} não encontrado no dicionário");
 
-            // Normaliza size do dicionário também
             var sizeFromDictionary = NormalizeSize(sizeFromDB);
 
-            // Compara normalizado (ex.: "128G")
             if (!sizeFromDictionary.Equals(sizeFromProgram, StringComparison.OrdinalIgnoreCase))
                 throw new SizeException($"Size não corresponde. Esperado: {sizeFromDictionary}, Recebido: {sizeFromProgram}");
         }
@@ -180,13 +175,10 @@ namespace KY_MES.Application.Helpers
 
             var program = input.Inspection.Program ?? string.Empty;
 
-            // 1) Pega o AssemblyId pelo WipId
             var assemblyId = await mes.GetAssemblyId(wipId);
 
-            // 2) Busca o “ParentBomName” para comparação
             var parentBom = await mes.GetProgramInBom(assemblyId);
 
-            // 3) Regra: aceitar se program == parentBom (case-insensitive) OU se o program contiver “BOT”
             var equalsBom = program.Equals(parentBom, StringComparison.OrdinalIgnoreCase);
             var containsBOT = program.IndexOf("BOT", StringComparison.OrdinalIgnoreCase) >= 0;
 
@@ -306,7 +298,8 @@ namespace KY_MES.Application.Helpers
         public async Task<List<InspectionUnitRecord>> BuildInspectionUnitRecords(
             SPIInputModel input,
             OperationInfo operationhistory,
-            IMESService mes)
+            IMESService mes,
+            string fert)
         {
             var manufacturingArea = operationhistory?.ManufacturingArea;
 
@@ -357,6 +350,7 @@ namespace KY_MES.Application.Helpers
                     StartTime = ParseDate(runMeta?.Start),
                     EndTime = ParseDate(runMeta?.End),
                     ManufacturingArea = manufacturingArea,
+                    Fert = fert.ToString()
                 };
 
                 var isNg = string.Equals(b.Result, "NG", StringComparison.OrdinalIgnoreCase);
@@ -370,7 +364,7 @@ namespace KY_MES.Application.Helpers
             return units;
         }
 
-        public InspectionRun BuildInspectionRun(SPIInputModel input, string? manufacturingArea)
+        public InspectionRun BuildInspectionRun(SPIInputModel input, string? manufacturingArea, string fert)
         {
             var insp = input.Inspection;
 
@@ -386,6 +380,7 @@ namespace KY_MES.Application.Helpers
                 StartTime = ParseDateOffset(insp?.Start),
                 EndTime = ParseDateOffset(insp?.End),
                 ManufacturingArea = manufacturingArea,
+                Fert = fert,
             };
         }
 

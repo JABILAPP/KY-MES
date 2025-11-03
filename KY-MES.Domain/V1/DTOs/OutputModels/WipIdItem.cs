@@ -36,6 +36,7 @@ namespace KY_MES.Domain.V1.DTOs.OutputModels
         public int? RouteStepId { get; set; }
         public string? RouteStepName { get; set; }
         public string? Resource { get; set; }
+        public string? Fert { get; set; }
     }
 
 

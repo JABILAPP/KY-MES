@@ -15,7 +15,7 @@ public class SpiRepository : ISpiRepository
         _db = context;
     }
 
-    public async Task<long> SaveSpiRunAsync(InspectionRun run, List<InspectionUnitRecord> units, CancellationToken ct = default)
+    public async Task<long> SaveSpiRunAsync(string fert, InspectionRun run, List<InspectionUnitRecord> units, CancellationToken ct = default)
     {
         // 0) checkagem se o run já existe no database
         var existingLogInDb = await _db.InspectionRuns
@@ -49,6 +49,7 @@ public class SpiRepository : ISpiRepository
                 StartTime = ur.StartTime,
                 EndTime = ur.EndTime,
                 ManufacturingArea = ur.ManufacturingArea,
+                Fert = fert
                 //Pallet = ur.Pallet
             };
             unitsEntities.Add(u);
@@ -73,8 +74,9 @@ public class SpiRepository : ISpiRepository
                     Comp = d.Comp,
                     Part = d.Part,
                     DefectCode = d.DefectCode,
+                    Fert = fert
                     //Pallet = unitEntity.Pallet
-                    
+
                 };
                 defectsToAdd.Add(def);
             }

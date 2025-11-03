@@ -26,6 +26,7 @@ namespace KY_MES.Infra.CrossCutting.Data
                 b.Property(x => x.User).HasMaxLength(100);
                 b.Property(x => x.ManufacturingArea).HasMaxLength(100);
                 b.Property(x => x.RawJson);
+                b.Property(x => x.Fert).HasMaxLength(100);
                 b.HasIndex(x => x.InspectionBarcode);
                 b.HasMany(x => x.Units)
                 .WithOne(u => u.Run)
@@ -43,6 +44,7 @@ namespace KY_MES.Infra.CrossCutting.Data
                 b.Property(x => x.Machine).HasMaxLength(100);
                 b.Property(x => x.User).HasMaxLength(100);
                 b.Property(x => x.ManufacturingArea).HasMaxLength(100);
+                b.Property(x => x.Fert).HasMaxLength(100);
                 b.HasIndex(x => x.InspectionRunId);
                 b.HasIndex(x => x.UnitBarcode);
                 b.HasIndex(x => new { x.InspectionRunId, x.ArrayIndex }).IsUnique();
@@ -55,6 +57,7 @@ namespace KY_MES.Infra.CrossCutting.Data
                 b.Property(x => x.Comp).HasMaxLength(100);
                 b.Property(x => x.Part).HasMaxLength(100);
                 b.Property(x => x.DefectCode).HasMaxLength(100).IsRequired();
+                b.Property(x => x.Fert).HasMaxLength(100);
                 b.HasIndex(x => x.InspectionUnitId);
                 b.HasIndex(x => x.DefectCode);
                 b.HasOne(x => x.Unit)

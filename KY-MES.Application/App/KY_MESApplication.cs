@@ -30,6 +30,8 @@ namespace KY_MES.Controllers
             // 1) Operation history
             var opHistory = await _mes.GetOperationInfoAsync(input.Inspection.Barcode);
 
+            string fert = opHistory.Fert;
+
             // 2) Normalização + mapeamento defeitos
             _helpers.KeepOneDefectPerCRDIgnoringEmptyComp(input);
             var remapped = await _helpers.MapearDefeitosSPICriandoNovo(input);
@@ -41,7 +43,7 @@ namespace KY_MES.Controllers
             var wipPrincipal = (int)getWip.WipId;
             var wipIds = await _mes.GetWipIds(remapped.Inspection.Barcode!);
 
-            // 4) Validação SIZE/GB sempre
+            // 4) Validação SIZE/GB 
             await _helpers.ValidateSizeGbIfNeeded(remapped, wipPrincipal);
 
             // 5) Branch principal por resultado e tipo de máquina
@@ -146,9 +148,9 @@ namespace KY_MES.Controllers
             // 6) db units + defects + runs
             try
             {
-                var units = await _helpers.BuildInspectionUnitRecords(remapped, opHistory, _mes);
-                var run = _helpers.BuildInspectionRun(remapped, opHistory?.ManufacturingArea);
-                var runId = await _repo.SaveSpiRunAsync(run, units);
+                var units = await _helpers.BuildInspectionUnitRecords(remapped, opHistory, _mes, opHistory.Fert.ToString());
+                var run = _helpers.BuildInspectionRun(remapped, opHistory?.ManufacturingArea, fert);
+                var runId = await _repo.SaveSpiRunAsync(fert, run, units);
                 return runId;
             }
             catch
@@ -170,11 +172,13 @@ namespace KY_MES.Controllers
 
             var opHistory = await _mes.GetOperationInfoAsync(input.Inspection.Barcode);
 
-            var units = await _helpers.BuildInspectionUnitRecords(input, opHistory, _mes);
-            await _mes.AddAttribute(input);
+            string fert = opHistory.Fert;
 
-            var run = _helpers.BuildInspectionRun(input, opHistory?.ManufacturingArea);
-            var runId = await _repo.SaveSpiRunAsync(run, units);
+            var units = await _helpers.BuildInspectionUnitRecords(input, opHistory, _mes, fert);
+            // await _mes.AddAttribute(input);
+
+            var run = _helpers.BuildInspectionRun(input, opHistory?.ManufacturingArea, fert);
+            var runId = await _repo.SaveSpiRunAsync(fert, run, units);
             return runId;
         }
 

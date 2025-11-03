@@ -38,11 +38,11 @@ namespace KY_MES.Services
             };
             _client = new HttpClient(_handler);
 
-            var token = GetUserTokenFromDb();
-            if (!string.IsNullOrEmpty(token) && !string.IsNullOrEmpty(MesBaseUrl))
-            {
-                _cookieContainer.Add(new Uri(MesBaseUrl), new Cookie("UserToken", token));
-            }
+            //var token = GetUserTokenFromDb();
+            //if (!string.IsNullOrEmpty(token) && !string.IsNullOrEmpty(MesBaseUrl))
+            //{
+            //    _cookieContainer.Add(new Uri(MesBaseUrl), new Cookie("UserToken", token));
+            //}
         }
 
         private string GetUserTokenFromDb()
@@ -568,7 +568,7 @@ namespace KY_MES.Services
                 SerialNumber = (string?)wip["SerialNumber"],
                 WipId = (int?)wip["WipId"],
                 CustomerName = (string?)wip["CustomerName"],
-
+                Fert = (string)wip["AssemblyNumber"],
                 ManufacturingArea = (string?)op["ManufacturingArea"],
                 RouteStepId = (int?)op["RouteStepId"],
                 RouteStepName = (string?)op["RouteStepName"],
