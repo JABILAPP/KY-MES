@@ -18,8 +18,8 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "MES_BASE_URL": "https://man-prd.jemsms.corp.jabil.org/",
-        "Username": "svchua_jesmapistg",
-        "Password": "qKzla3oBDA51Ecq=+B2_z"
+        "Username": "Username",
+        "Password": "qPassword"
       }
     },
     "https": {
@@ -31,8 +31,8 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "MES_BASE_URL": "https://man-prd.jemsms.corp.jabil.org/",
-        "Username": "svchua_jesmapistg",
-        "Password": "qKzla3oBDA51Ecq=+B2_z"
+        "Username": "Username",
+        "Password": "qPassword"
       }
     },
     "IIS Express": {
@@ -42,8 +42,8 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "MES_BASE_URL": "https://man-prd.jemsms.corp.jabil.org/",
-        "Username": "svchua_jesmapistg",
-        "Password": "qKzla3oBDA51Ecq=+B2_z"
+        "Username": "Username",
+        "Password": "qPassword"
       }
     }
   }
