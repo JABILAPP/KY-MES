@@ -12,6 +12,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Data.SqlClient;
 using KY_MES.Services.Exceptions;
+using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace KY_MES.Services
 {
@@ -531,7 +532,7 @@ namespace KY_MES.Services
         {
             var url = $"{MesBaseUrl}api-external-api/api/Wips/OperationHistories?SiteName=MANAUS&SerialNumber={serialNumber}";
             var resp = await _client.GetAsync(url);
-            resp.EnsureSuccessStatusCode();
+                resp.EnsureSuccessStatusCode();
 
             var body = await resp.Content.ReadAsStringAsync();
             var root = JObject.Parse(body);
@@ -803,7 +804,229 @@ namespace KY_MES.Services
         }
         #endregion
 
+        // COMPLETE WIP FAIL 
 
+        //public async Task<CompleteWipResponseModel> CompleteWipAddDefects(
+        // SPIInputModel input,
+        // List<WipSerial> wipsBySerial)
+        //{
+        //    if (input == null) throw new ArgumentNullException(nameof(input));
+        //    if (wipsBySerial == null || wipsBySerial.Count == 0)
+        //        throw new ArgumentException("getWipResponse vazio", nameof(wipsBySerial));
+
+        //    // 1) Definir WIP raiz (ajuste a heurística conforme seu backend)
+        //    long wipRaiz =
+        //        getWipResponse.FirstOrDefault(x => x.Panel?.PanelWips == null || x.Panel.PanelWips.Count == 0)?.WipId
+        //        ?? getWipResponse.First().WipId;
+        //    if (wipRaiz <= 0) throw new InvalidOperationException("WIP raiz inválido.");
+
+        //    // 2) Índice Array/PanelPosition (int) -> WipId do painel (long)
+        //    var positionToPanelWipId = new Dictionary<int, long>();
+        //    foreach (var item in getWipResponse)
+        //    {
+        //        foreach (var pw in item.Panel?.PanelWips ?? Enumerable.Empty<PanelWip>())
+        //        {
+        //            if (pw.PanelPosition.HasValue && pw.WipId.HasValue)
+        //            {
+        //                var pos = pw.PanelPosition.Value; // int
+        //                var wid = pw.WipId.Value;         // long
+        //                if (pos >= 0 && wid > 0)
+        //                    positionToPanelWipId[pos] = wid;
+        //            }
+        //        }
+        //    }
+
+        //    // 3) Agregar defects por painel (usando Array do SPI)
+        //    var panelToDefects = new Dictionary<long, List<DefectItem>>();
+
+        //    foreach (var board in input.Board ?? Enumerable.Empty<Board>())
+        //    {
+        //        if (string.IsNullOrWhiteSpace(board?.Result) ||
+        //            !board.Result.Contains("NG", StringComparison.OrdinalIgnoreCase))
+        //            continue;
+
+        //        // Array vem como string no seu JSON ("1","2","3","4")
+        //        if (!int.TryParse(board.Array, out var arrayPos) || arrayPos < 0)
+        //            continue;
+
+        //        if (!positionToPanelWipId.TryGetValue(arrayPos, out var panelWipId) || panelWipId <= 0)
+        //            continue;
+
+        //        foreach (var d in board.Defects ?? Enumerable.Empty<Defects>())
+        //        {
+        //            var name = d?.Defect?.Trim();
+        //            if (string.IsNullOrWhiteSpace(name)) continue;
+
+        //            var crd = d?.Comp?.Trim();
+        //            if (string.IsNullOrWhiteSpace(crd)) crd = "HALBIM";
+
+        //            var defect = new DefectItem
+        //            {
+        //                DefectName = name,
+        //                DefectCRD = crd,
+        //                DefectDetail = name,
+        //                DefectComment = name,
+        //                DefectQuantity = 1
+        //            };
+
+        //            if (!panelToDefects.TryGetValue(panelWipId, out var list))
+        //            {
+        //                list = new List<DefectItem>();
+        //                panelToDefects[panelWipId] = list;
+        //            }
+        //            list.Add(defect);
+        //        }
+        //    }
+
+        //    // 4) Dedup por painel: (defectName, defectCRD), somando quantities
+        //    var panelDefectList = panelToDefects
+        //        .Select(kv =>
+        //        {
+        //            var dedup = kv.Value
+        //                .GroupBy(x => new KeyNameCrd(
+        //                                 (x.DefectName ?? string.Empty).Trim(),
+        //                                 (x.DefectCRD ?? string.Empty).Trim()))
+        //                .Select(g =>
+        //                {
+        //                    var first = g.First();
+        //                    first.DefectQuantity = g.Count();
+        //                    return first;
+        //                })
+        //                .ToList();
+
+        //            return new PanelDefectItem { WipId = kv.Key, Defects = dedup };
+        //        })
+        //        .Where(pd => pd.Defects != null && pd.Defects.Count > 0)
+        //        .OrderBy(pd => pd.WipId)
+        //        .ToList();
+
+        //    // 5) Payload
+        //    var payload = new CompleteWithPanelDefectsRequest
+        //    {
+        //        WipId = wipRaiz,
+        //        PanelDefectList = panelDefectList
+        //    };
+
+        //    // 6) POST no endpoint do MES
+        //    var url = $"{MesBaseUrl}api-external-api/api/Wips/{wipRaiz}/complete";
+
+        //    var jsonOptions = new JsonSerializerOptions
+        //    {
+        //        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        //        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+        //    };
+        //    var json = System.Text.Json.JsonSerializer.Serialize(payload, jsonOptions);
+        //    var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        //    var response = await _client.PostAsync(url, content);
+        //    var body = await response.Content.ReadAsStringAsync();
+
+        //    // 7) Montar response model (ajuste conforme sua necessidade)
+        //    return new CompleteWipResponseModel
+        //    {
+        //        //Success = response.IsSuccessStatusCode,
+        //        //Message = response.IsSuccessStatusCode ? "Complete com defeitos realizado com sucesso." : "Falha ao completar WIP com defeitos.",
+        //        //StatusCode = (int)response.StatusCode,
+        //        //RawBody = body
+        //    };
+        //}
+
+
+
+
+        #region Genealogy Validation
+
+        public async Task<List<(string? MaterialName, string? CRD)>> GetMaterialNamesAndCRDs(int wipId)
+        {
+            try
+            {
+                var genealogyUrl = $"{MesBaseUrl}api-external-api/api/Wips/{wipId}/genealogy";
+                var response = await _client.GetAsync(genealogyUrl);
+                response.EnsureSuccessStatusCode();
+
+                var jsonString = await response.Content.ReadAsStringAsync();
+
+                using var doc = JsonDocument.Parse(jsonString);
+                var root = doc.RootElement;
+
+                var result = new List<(string? MaterialName, string? CRD)>();
+
+                if (root.TryGetProperty("WipGenealogy", out var wipGenealogyArray) && wipGenealogyArray.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in wipGenealogyArray.EnumerateArray())
+                    {
+                        string? materialName = item.TryGetProperty("MaterialName", out var mn) ? mn.GetString() : null;
+                        string? crd = item.TryGetProperty("CRD", out var c) ? c.GetString() : null;
+                        result.Add((materialName, crd));
+                    }
+                }
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Erro ao pegar MaterialName e CRD: {ex.Message}");
+            }
+        }
+
+
+        public async Task<List<(string? MaterialName, string? CRD)>> GetCRDsInBOM(int wipId)
+        {
+            try
+            {
+                var bomUrl = $"{MesBaseUrl}api-external-api/api/quality/getWipSnapshotItemNonAssembledCrds?wipId={wipId}";
+                var response = await _client.GetAsync(bomUrl);
+                response.EnsureSuccessStatusCode();
+
+                var jsonString = await response.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(jsonString);
+                var root = doc.RootElement;
+
+                var result = new List<(string? MaterialName, string? CRD)>();
+                if (root.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in root.EnumerateArray())
+                    {
+                        string? materialName = item.TryGetProperty("MaterialName", out var mn) ? mn.GetString() : null;
+                        string? crd = item.TryGetProperty("CrdName", out var c) ? c.GetString() : null;
+                        result.Add((materialName, crd));
+                    }
+                }
+
+                return result;
+
+            }
+            catch(Exception ex)
+            {
+                throw new Exception($"Erro ao pegar MaterialName e CRD na BOM: {ex.Message}");
+            }
+        }
+
+
+        #endregion
+
+
+
+        private readonly struct KeyNameCrd : IEquatable<KeyNameCrd>
+        {
+            public readonly string Name;
+            public readonly string Crd;
+
+            public KeyNameCrd(string name, string crd)
+            {
+                Name = name ?? string.Empty;
+                Crd = crd ?? string.Empty;
+            }
+
+            public bool Equals(KeyNameCrd other) =>
+                string.Equals(Name, other.Name, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(Crd, other.Crd, StringComparison.OrdinalIgnoreCase);
+
+            public override bool Equals(object? obj) => obj is KeyNameCrd other && Equals(other);
+
+            public override int GetHashCode() =>
+                HashCode.Combine(Name.ToUpperInvariant(), Crd.ToUpperInvariant());
+        }
 
         public IReadOnlyList<int> GetCachedWipIds(string serialNumber)
         {

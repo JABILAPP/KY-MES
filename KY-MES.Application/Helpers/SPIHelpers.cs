@@ -56,18 +56,7 @@ namespace KY_MES.Application.Helpers
             }
         }
 
-        //public async Task<SPIInputModel> MapearDefeitosSPICriandoNovo(SPIInputModel spi, CancellationToken ct = default)
-        //{
-        //    await NormalizeLock.WaitAsync(ct);
-        //    try
-        //    {
-        //        return DeepClone(spi);
-        //    }
-        //    finally
-        //    {
-        //        NormalizeLock.Release();
-        //    }
-        //}
+
 
         public async Task<SPIInputModel> MapearDefeitosSPICriandoNovo(SPIInputModel spi, CancellationToken ct = default)
         {
@@ -115,7 +104,7 @@ namespace KY_MES.Application.Helpers
             // Extrai size do Program usando o mesmo padrão do legado: "-(ddd)(GB)?-"
             var sizeFromProgram = ExtractAndNormalizeSizeFromProgram(program);
             if (string.IsNullOrEmpty(sizeFromProgram))
-                return; // Sem size parseável no Program -> mantém comportamento atual (sai silenciosamente)
+                return; 
 
             var mes = mesOverride ?? _mESService ?? throw new ArgumentNullException(nameof(mesOverride), "IMESService indisponível para validação de SIZE/GB.");
 
@@ -196,6 +185,24 @@ namespace KY_MES.Application.Helpers
             }
         }
 
+
+
+        public async Task ValidadeCRDinBOM(int wipPrincipal, IMESService mes)
+        {
+            // 1. Endpoint do genealogy
+            var wipGenealogy = await mes.GetMaterialNamesAndCRDs(wipPrincipal);
+            if (wipGenealogy == null)
+                throw new Exception("Genealogy ou BomComponents nulos");
+
+            // 2. CRD na BOM 
+            var bomCRDs = await mes.GetCRDsInBOM(wipPrincipal);
+            if (bomCRDs == null)
+                throw new Exception("CRD's Vazias para a BOM deste produto");
+
+
+            //3. Check se no genealogy foi o mesmo componente
+
+        }
 
 
         public async Task ValidateProgramEqualsBomStrict(SPIInputModel input, int wipId, IMESService mes)

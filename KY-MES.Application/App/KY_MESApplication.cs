@@ -1,6 +1,7 @@
 ﻿using KY_MES.Application.Exceptions;
 using KY_MES.Application.Helpers;
 using KY_MES.Domain.V1.DTOs.InputModels;
+using KY_MES.Domain.V1.DTOs.OutputModels;
 using KY_MES.Domain.V1.Interfaces;
 using KY_MES.Services.DomainServices.Interfaces;
 using CheckPVFailedException = KY_MES.Application.Exceptions.CheckPVFailedException;
@@ -27,6 +28,12 @@ namespace KY_MES.Controllers
 
         public async Task<long> SPISendWipData(SPIInputModel input)
         {
+
+            //var username = Environment.GetEnvironmentVariable("Username");
+            //var password = Environment.GetEnvironmentVariable("Password");
+            //await _mes.SignInAsync(_utils.SignInRequest(username, password));
+
+
             // 1) Operation history
             var opHistory = await _mes.GetOperationInfoAsync(input.Inspection.Barcode);
 
@@ -36,6 +43,7 @@ namespace KY_MES.Controllers
 
             // 3) Get Wip
             var getWip = await _mes.GetWipIdBySerialNumberAsync(_utils.SpiToGetWip(remapped));
+ 
             if (getWip?.WipId == null || getWip.WipId <= 0) throw new Exception("WipId não encontrado");
 
             var wipPrincipal = (int)getWip.WipId;
@@ -43,6 +51,9 @@ namespace KY_MES.Controllers
 
             // 4) Validação SIZE/GB sempre
             await _helpers.ValidateSizeGbIfNeeded(remapped, wipPrincipal);
+
+
+
 
             // 5) Branch principal por resultado e tipo de máquina
             var isNg = remapped.Inspection.Result?.IndexOf("NG", StringComparison.OrdinalIgnoreCase) >= 0;
@@ -65,17 +76,25 @@ namespace KY_MES.Controllers
                     var start = await _mes.StartWipAsync(_utils.ToStartWip(remapped, getWip));
                     if (start == null || !start.Success) throw new StartWipException("start Wip failed");
 
+                    //var complete = await _mes.CompleteWipAddDefects(remapped, wipIds);
+
+
                     var complete = await _helpers.TryAddDefectWithRetry(
                         () => _mes.AddDefectAsync(_utils.ToAddDefect(remapped, getWip), wipPrincipal),
                         maxRetries: 2,
                         delayMs: 500
                     );
+
                     if (complete == null) throw new CompleteWipException("complete wip failed");
                 }
                 else
                 {
                     // NG PARA AOI
                     await _helpers.ValidateProgramVsBomOrBotForAOI(remapped, wipPrincipal, _mes);
+
+                    await _helpers.ValidadeCRDinBOM(wipPrincipal, _mes);
+
+
 
                     var resourceMachine = _helpers.BuildResourceMachine(opHistory?.ManufacturingArea, "- Repair 01");
                     await _helpers.ExecutarReworkSeNecessario(_mes, wipIds, resourceMachine, wipPrincipal);
@@ -86,11 +105,17 @@ namespace KY_MES.Controllers
                     var start = await _mes.StartWipAsync(_utils.ToStartWip(remapped, getWip));
                     if (start == null || !start.Success) throw new StartWipException("start Wip failed");
 
+
+                    //var complete = await _mes.CompleteWipAddDefects(remapped, wipIds);
+
+
                     var complete = await _helpers.TryAddDefectWithRetry(
                         () => _mes.AddDefectAsync(_utils.ToAddDefect(remapped, getWip), wipPrincipal),
                         maxRetries: 2,
                         delayMs: 500
                     );
+
+
                     if (complete == null) throw new CompleteWipException("complete wip failed");
                 }
             }
@@ -111,6 +136,7 @@ namespace KY_MES.Controllers
                     if (start == null || !start.Success) throw new StartWipException("start Wip failed");
 
 
+
                     completeWipResponse = await _mes.CompleteWipPassAsync(
                         _utils.ToCompleteWipPass(remapped, getWip), getWip.WipId.ToString()
                     );
@@ -120,6 +146,10 @@ namespace KY_MES.Controllers
                 {
                     // OK para AOI 
                     await _helpers.ValidateProgramVsBomOrBotForAOI(remapped, wipPrincipal, _mes);
+
+                    await _helpers.ValidadeCRDinBOM(wipPrincipal, _mes);
+
+
 
                     var resourceMachine = _helpers.BuildResourceMachine(opHistory?.ManufacturingArea, "- Repair 01");
                     await _helpers.ExecutarReworkSeNecessario(_mes, wipIds, resourceMachine, wipPrincipal);

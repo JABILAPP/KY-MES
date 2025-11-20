@@ -45,5 +45,20 @@ namespace KY_MES.Services.DomainServices.Interfaces
 
         // full operation complete pass 
         Task<CompleteWipResponseModel> FullWipOpCompletePass(OperationInfo operationInfo, GetWipIdBySerialNumberResponseModels getWipResponse);
+
+
+        // complete wip com add defects 
+
+        //Task<CompleteWipResponseModel> CompleteWipAddDefects(SPIInputModel input, List<WipSerial> wipsBySerial);
+
+
+
+        // Map CRD in genealogy Endpoint
+        //Task<WipGenealogyResponse> GetWipGenealogyResponse(int wipId);
+
+
+        Task<List<(string? MaterialName, string? CRD)>> GetMaterialNamesAndCRDs(int wipId);
+
+        Task<List<(string? MaterialName, string? CRD)>> GetCRDsInBOM(int wipId);
     }
 }
