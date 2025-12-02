@@ -186,7 +186,6 @@ namespace KY_MES.Services
                 // 2) Segunda tentativa trocando o crd para HALBIM
                 if (response.StatusCode == HttpStatusCode.BadRequest)
                 {
-
                     if (addDefectRequestModel?.panelDefects != null)
                     {
                         foreach (var panel in addDefectRequestModel.panelDefects)
@@ -214,10 +213,42 @@ namespace KY_MES.Services
                     jsonContent = JsonConvert.SerializeObject(addDefectRequestModel);
                     content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
 
-
                     response = await _client.PostAsync(addDefectUrl, content);
+
+                    if (response.StatusCode == HttpStatusCode.BadRequest)
+                    {
+                        if (addDefectRequestModel?.panelDefects != null)
+                        {
+                            foreach (var panel in addDefectRequestModel.panelDefects)
+                            {
+                                if (panel?.defects == null) continue;
+
+                                foreach (var d in panel.defects)
+                                {
+                                    if (d == null) continue;
+                                    d.defectCRD = "HALBROUT";
+                                    d.defectComment = "HALBROUT";
+                                }
+
+                                panel.defects = panel.defects
+                                    .GroupBy(d => new
+                                    {
+                                        Comp = (d.defectCRD ?? string.Empty).Trim(),
+                                        Defect = (d.defectName ?? string.Empty).Trim(),
+                                    })
+                                    .Select(g => g.First())
+                                    .ToList();
+                            }
+                        }
+
+                        jsonContent = JsonConvert.SerializeObject(addDefectRequestModel);
+                        content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
+
+                        response = await _client.PostAsync(addDefectUrl, content);
+                    }
                 }
 
+                // Verifica se a resposta final foi bem-sucedida
                 if (!response.IsSuccessStatusCode)
                 {
                     var body = await response.Content.ReadAsStringAsync();
