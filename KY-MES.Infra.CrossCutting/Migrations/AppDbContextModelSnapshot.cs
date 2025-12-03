@@ -4,19 +4,16 @@ using KY_MES.Infra.CrossCutting.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
-using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace KY_MES.Infra.CrossCutting.DataMigrations
+namespace KY_MES.Infra.CrossCutting.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20251016173606_Init")]
-    partial class Init
+    partial class AppDbContextModelSnapshot : ModelSnapshot
     {
-        /// <inheritdoc />
-        protected override void BuildTargetModel(ModelBuilder modelBuilder)
+        protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -33,12 +30,18 @@ namespace KY_MES.Infra.CrossCutting.DataMigrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
+                    b.Property<string>("Carrier")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<string>("Comp")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
 
                     b.Property<string>("DefectCode")
                         .IsRequired()
@@ -48,14 +51,13 @@ namespace KY_MES.Infra.CrossCutting.DataMigrations
                     b.Property<long>("InspectionUnitId")
                         .HasColumnType("bigint");
 
-                    b.Property<string>("Pallet")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("Part")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Carrier");
 
                     b.HasIndex("DefectCode");
 
@@ -72,8 +74,14 @@ namespace KY_MES.Infra.CrossCutting.DataMigrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
+                    b.Property<string>("Carrier")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
 
                     b.Property<DateTimeOffset?>("EndTime")
                         .HasColumnType("datetimeoffset");
@@ -89,9 +97,6 @@ namespace KY_MES.Infra.CrossCutting.DataMigrations
                     b.Property<string>("ManufacturingArea")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("Pallet")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Program")
                         .HasMaxLength(100)
@@ -121,6 +126,8 @@ namespace KY_MES.Infra.CrossCutting.DataMigrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Carrier");
+
                     b.HasIndex("InspectionBarcode");
 
                     b.ToTable("inspection_runs", (string)null);
@@ -137,8 +144,14 @@ namespace KY_MES.Infra.CrossCutting.DataMigrations
                     b.Property<int>("ArrayIndex")
                         .HasColumnType("int");
 
+                    b.Property<string>("Carrier")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
 
                     b.Property<DateTimeOffset?>("EndTime")
                         .HasColumnType("datetimeoffset");
@@ -153,9 +166,6 @@ namespace KY_MES.Infra.CrossCutting.DataMigrations
                     b.Property<string>("ManufacturingArea")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("Pallet")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Result")
                         .HasMaxLength(20)
@@ -177,6 +187,8 @@ namespace KY_MES.Infra.CrossCutting.DataMigrations
                         .HasColumnType("nvarchar(100)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Carrier");
 
                     b.HasIndex("InspectionRunId");
 

@@ -11,6 +11,5 @@ namespace KY_MES.Domain.V1.Interfaces
         Task<long> SPISendWipDataLog(SPIInputModel input);
         //Task<List<InspectionUnitRecord>> BuildInspectionUnitRecords(SPIInputModel input, OperationInfo operationhistory);
 
-
     }
 }

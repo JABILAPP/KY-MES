@@ -3,10 +3,10 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace KY_MES.Infra.CrossCutting.DataMigrations
+namespace KY_MES.Infra.CrossCutting.Migrations
 {
     /// <inheritdoc />
-    public partial class Initial : Migration
+    public partial class CarrierTest : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -28,7 +28,8 @@ namespace KY_MES.Infra.CrossCutting.DataMigrations
                     EndTime = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
                     ManufacturingArea = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     RawJson = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "GETUTCDATE()"),
+                    Carrier = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -51,7 +52,8 @@ namespace KY_MES.Infra.CrossCutting.DataMigrations
                     StartTime = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
                     EndTime = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
                     ManufacturingArea = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "GETUTCDATE()"),
+                    Carrier = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -74,7 +76,8 @@ namespace KY_MES.Infra.CrossCutting.DataMigrations
                     Comp = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     Part = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     DefectCode = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "GETUTCDATE()"),
+                    Carrier = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -88,6 +91,11 @@ namespace KY_MES.Infra.CrossCutting.DataMigrations
                 });
 
             migrationBuilder.CreateIndex(
+                name: "IX_inspection_defects_Carrier",
+                table: "inspection_defects",
+                column: "Carrier");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_inspection_defects_DefectCode",
                 table: "inspection_defects",
                 column: "DefectCode");
@@ -98,9 +106,19 @@ namespace KY_MES.Infra.CrossCutting.DataMigrations
                 column: "InspectionUnitId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_inspection_runs_Carrier",
+                table: "inspection_runs",
+                column: "Carrier");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_inspection_runs_InspectionBarcode",
                 table: "inspection_runs",
                 column: "InspectionBarcode");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_inspection_units_Carrier",
+                table: "inspection_units",
+                column: "Carrier");
 
             migrationBuilder.CreateIndex(
                 name: "IX_inspection_units_InspectionRunId",

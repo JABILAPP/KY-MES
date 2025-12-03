@@ -690,6 +690,10 @@ namespace KY_MES.Services
 
             return;
         }
+        
+        
+        
+        
         #endregion
 
 
@@ -805,22 +809,9 @@ namespace KY_MES.Services
 
 
 
-        public IReadOnlyList<int> GetCachedWipIds(string serialNumber)
-        {
-            return _wipIdsBySerial.TryGetValue(serialNumber, out var ids) ? ids : Array.Empty<int>();
-        }
-
-        public IReadOnlyList<int> GetCachedIndictmentIds(int wipId)
-        {
-            return _indictmentsByWip.TryGetValue(wipId, out var ids) ? ids : Array.Empty<int>();
-        }
 
 
-        public static async Task<string> SafeReadAsStringAsync(HttpContent content, CancellationToken ct)
-        {
-            try { return content == null ? string.Empty : await content.ReadAsStringAsync(ct); }
-            catch { return string.Empty; }
-        }
+
 
 
         public static SPIWipInfo MapSpiWipInfo(JObject obj)
@@ -870,20 +861,18 @@ namespace KY_MES.Services
             return info;
         }
 
-        // Normaliza e deduplica PanelWips por posição e ordena
         public static void NormalizePanel(SPIWipInfo info)
         {
             if (info == null) return;
             info.Panel ??= new Domain.V1.DTOs.InputModels.PanelInfo();
             info.Panel.PanelWips ??= new List<PanelWip>();
 
-            // Dedup por PanelPosition, preferindo não quebrados e com SerialNumber preenchido
             info.Panel.PanelWips = info.Panel.PanelWips
-                .Where(pw => pw.PanelPosition > 0) // filtro básico
+                .Where(pw => pw.PanelPosition > 0)
                 .GroupBy(pw => pw.PanelPosition)
                 .Select(g => g
-                    .OrderBy(pw => pw.IsPanelBroken) // false (não quebrado) primeiro
-                    .ThenBy(pw => string.IsNullOrWhiteSpace(pw.SerialNumber)) // preferir que tenha serial
+                    .OrderBy(pw => pw.IsPanelBroken)
+                    .ThenBy(pw => string.IsNullOrWhiteSpace(pw.SerialNumber)) 
                     .First())
                 .OrderBy(pw => pw.PanelPosition)
                 .ToList();

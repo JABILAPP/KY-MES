@@ -1,19 +1,21 @@
-﻿using KY_MES.Application.Exceptions;
+﻿using Dapper;
+using KY_MES.Application.Exceptions;
+using KY_MES.Application.Utils;
+using KY_MES.Domain.DefectMap;
+using KY_MES.Domain.ModelType;
 using KY_MES.Domain.V1.DTOs.InputModels;
 using KY_MES.Domain.V1.DTOs.OutputModels;
+using KY_MES.Services;
 using KY_MES.Services.DomainServices.Interfaces;
+using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Configuration;
+using Newtonsoft.Json;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using KY_MES.Application.Utils;
 using AppUtils = KY_MES.Application.App.Utils.UtilsModel;
-using KY_MES.Services;
-using KY_MES.Domain.ModelType;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Data.SqlClient;
-using Dapper;
-using KY_MES.Domain.DefectMap;
 using BomProgramFailException = KY_MES.Application.Exceptions.BomProgramFailException;
+using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace KY_MES.Application.Helpers
 {
@@ -357,6 +359,7 @@ namespace KY_MES.Application.Helpers
                     StartTime = ParseDate(runMeta?.Start),
                     EndTime = ParseDate(runMeta?.End),
                     ManufacturingArea = manufacturingArea,
+                    Carrier = ""
                 };
 
                 var isNg = string.Equals(b.Result, "NG", StringComparison.OrdinalIgnoreCase);
@@ -386,6 +389,8 @@ namespace KY_MES.Application.Helpers
                 StartTime = ParseDateOffset(insp?.Start),
                 EndTime = ParseDateOffset(insp?.End),
                 ManufacturingArea = manufacturingArea,
+                Carrier = "",
+                RawJson = JsonConvert.SerializeObject(input, Formatting.None)
             };
         }
 

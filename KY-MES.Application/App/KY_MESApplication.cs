@@ -27,24 +27,20 @@ namespace KY_MES.Controllers
 
         public async Task<long> SPISendWipData(SPIInputModel input)
         {
-            // 1) Operation history
             var opHistory = await _mes.GetOperationInfoAsync(input.Inspection.Barcode);
 
-            // 2) Normalização + mapeamento defeitos
             _helpers.KeepOneDefectPerCRDIgnoringEmptyComp(input);
             var remapped = await _helpers.MapearDefeitosSPICriandoNovo(input);
 
-            // 3) Get Wip
             var getWip = await _mes.GetWipIdBySerialNumberAsync(_utils.SpiToGetWip(remapped));
             if (getWip?.WipId == null || getWip.WipId <= 0) throw new Exception("WipId não encontrado");
 
             var wipPrincipal = (int)getWip.WipId;
             var wipIds = await _mes.GetWipIds(remapped.Inspection.Barcode!);
 
-            // 4) Validação SIZE/GB sempre
+            // Validação SIZE/GB
             await _helpers.ValidateSizeGbIfNeeded(remapped, wipPrincipal);
 
-            // 5) Branch principal por resultado e tipo de máquina
             var isNg = remapped.Inspection.Result?.IndexOf("NG", StringComparison.OrdinalIgnoreCase) >= 0;
             var isSPIMachine = _helpers.IsSPIMachine(remapped.Inspection.Machine);
 
@@ -137,9 +133,6 @@ namespace KY_MES.Controllers
                         _utils.ToCompleteWipPass(remapped, getWip), getWip.WipId.ToString()
                     );
 
-
-                    //var complete = await _mes.CompleteWipPassAsync(opHistory, getWip, resourceFromLog);
-                    //if (complete == null) throw new CompleteWipException("complete wip failed");
                 }
             }
 
@@ -157,6 +150,7 @@ namespace KY_MES.Controllers
             }
         }
 
+
         public async Task<long> SPISendWipDataLog(SPIInputModel input)
         {
             var username = Environment.GetEnvironmentVariable("Username");
@@ -166,12 +160,12 @@ namespace KY_MES.Controllers
             var getWip = await _mes.GetWipIdBySerialNumberAsync(_utils.SpiToGetWip(input));
             if (getWip?.WipId == null || getWip.WipId <= 0) throw new Exception("WipId não encontrado");
 
-            await _helpers.ValidateProgramEqualsBomStrict(input, (int)getWip.WipId);
+            //await _helpers.ValidateProgramEqualsBomStrict(input, (int)getWip.WipId);
 
             var opHistory = await _mes.GetOperationInfoAsync(input.Inspection.Barcode);
 
             var units = await _helpers.BuildInspectionUnitRecords(input, opHistory, _mes);
-            await _mes.AddAttribute(input);
+            //await _mes.AddAttribute(input);
 
             var run = _helpers.BuildInspectionRun(input, opHistory?.ManufacturingArea);
             var runId = await _repo.SaveSpiRunAsync(run, units);
