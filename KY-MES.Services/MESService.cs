@@ -178,7 +178,6 @@ namespace KY_MES.Services
             {
                 var addDefectUrl = $"{MesBaseUrl}api-external-api/api/Wips/{WipId}/AddDefects";
 
-                // 1) Primeira tentativa: dedup por defectCRD + defectName (mantém nomes originais)
                 if (addDefectRequestModel?.panelDefects != null)
                 {
                     foreach (var panel in addDefectRequestModel.panelDefects)
@@ -202,10 +201,8 @@ namespace KY_MES.Services
 
                 var response = await _client.PostAsync(addDefectUrl, content);
 
-                // 2) Segunda tentativa trocando o crd para HALBIM
                 if (response.StatusCode == HttpStatusCode.BadRequest)
                 {
-
                     if (addDefectRequestModel?.panelDefects != null)
                     {
                         foreach (var panel in addDefectRequestModel.panelDefects)
@@ -233,6 +230,37 @@ namespace KY_MES.Services
                     jsonContent = JsonConvert.SerializeObject(addDefectRequestModel);
                     content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
 
+                    response = await _client.PostAsync(addDefectUrl, content);
+                }
+
+                if (response.StatusCode == HttpStatusCode.BadRequest)
+                {
+                    if (addDefectRequestModel?.panelDefects != null)
+                    {
+                        foreach (var panel in addDefectRequestModel.panelDefects)
+                        {
+                            if (panel?.defects == null) continue;
+
+                            foreach (var d in panel.defects)
+                            {
+                                if (d == null) continue;
+                                d.defectCRD = "HALBROUT";
+                                d.defectComment = "HALBROUT";
+                            }
+
+                            panel.defects = panel.defects
+                                .GroupBy(d => new
+                                {
+                                    Comp = (d.defectCRD ?? string.Empty).Trim(),
+                                    Defect = (d.defectName ?? string.Empty).Trim(),
+                                })
+                                .Select(g => g.First())
+                                .ToList();
+                        }
+                    }
+
+                    jsonContent = JsonConvert.SerializeObject(addDefectRequestModel);
+                    content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
 
                     response = await _client.PostAsync(addDefectUrl, content);
                 }
@@ -242,7 +270,7 @@ namespace KY_MES.Services
                     await AbourtStarted(WipId);
 
                     var body = await response.Content.ReadAsStringAsync();
-                    throw new AddDefectException($"Erro ao executar AddDefect (COMPONENTES E NEM HALMBIM ESTÁ SENDO ACEITO PELO MES)");
+                    throw new AddDefectException($"Erro ao executar AddDefect (COMPONENTES, HALBIM E HALBROUT NÃO ESTÃO SENDO ACEITOS PELO MES)");
                 }
 
                 await CompleteWipIoTAsync(WipId);
