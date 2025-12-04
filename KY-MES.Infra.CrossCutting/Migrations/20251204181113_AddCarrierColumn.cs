@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace KY_MES.Infra.CrossCutting.Migrations
 {
     /// <inheritdoc />
-    public partial class CarrierTest : Migration
+    public partial class AddCarrierColumn : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

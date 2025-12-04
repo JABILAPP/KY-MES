@@ -115,7 +115,7 @@ namespace KY_MES.Application.App.Utils
                             //defectCRD = defect.Comp
                             defectId = "",
                             defectName = defect.Defect,
-                            defectCRD =  defect.Comp,
+                            defectCRD = defect.Comp,
                             defectComment = defect.Comp
                         });
                     }
@@ -128,7 +128,7 @@ namespace KY_MES.Application.App.Utils
                     {
                         wipId = matchingWipId,
                         defects = defectsByBoard,
-                        hasValidNumericField = true // Assuming no numeric fields are present
+                        hasValidNumericField = true 
                     });
                 }
             }
@@ -137,17 +137,29 @@ namespace KY_MES.Application.App.Utils
             {
                 wipId = getWip.WipId,
                 defects = [],
-                hasValidNumericField = true, // Assuming no numeric fields are present
+                hasValidNumericField = true,
                 panelDefects = panelDefects
             };
         }
 
 
-        public CompleteWipPassRequestModel ToCompleteWipPass(SPIInputModel spi, GetWipIdBySerialNumberResponseModels getWip)
+
+        public CompleteWipPassRequestModel ToCompleteWipPass(
+            SPIInputModel spi,
+            GetWipIdBySerialNumberResponseModels getWip)
         {
             return new CompleteWipPassRequestModel
             {
-                SerialNumber = spi.Inspection.Barcode
+                WipId = getWip.WipId,
+                Measurements = new List<MeasurementModel>
+                {
+                    new MeasurementModel
+                    {
+                        MeasurementLabel = "Carrier",
+                        MeasurementData  = spi?.Pallet ?? "N/A",
+                        MeasureStatus = "Pass"
+                    }
+                }
             };
         }
     }

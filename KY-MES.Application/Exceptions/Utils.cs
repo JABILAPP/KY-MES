@@ -115,7 +115,7 @@ namespace KY_MES.Application.Utils
                             //defectCRD = defect.Comp
                             defectId = "",
                             defectName = defect.Defect,
-                            defectCRD =  defect.Comp,
+                            defectCRD = defect.Comp,
                             defectComment = defect.Comp
                         });
                     }
@@ -180,20 +180,42 @@ namespace KY_MES.Application.Utils
         }
 
 
-        public CompleteWipPassRequestModel ToCompleteWipPass(SPIInputModel spi, GetWipIdBySerialNumberResponseModels getWip)
+        //public CompleteWipPassRequestModel ToCompleteWipPass(SPIInputModel spi, GetWipIdBySerialNumberResponseModels getWip)
+        //{
+        //    return new CompleteWipPassRequestModel
+        //    {
+        //        SerialNumber = spi.Inspection.Barcode
+        //    };
+        //}
+
+
+        public CompleteWipPassRequestModel ToCompleteWipPass(
+            SPIInputModel spi,
+            GetWipIdBySerialNumberResponseModels getWip)
         {
             return new CompleteWipPassRequestModel
             {
-                SerialNumber = spi.Inspection.Barcode
+                WipId = getWip.WipId,
+                Measurements = new List<MeasurementModel>
+                {
+                    new MeasurementModel
+                    {
+                        MeasurementLabel = "Carrier",
+                        MeasurementData  = spi?.Pallet ?? "N/A",   // data
+                        MeasureStatus = "Pass"
+                    }
+                }
             };
         }
-        
-
-        
 
 
 
- 
+
+
+
+
+
+
 
 
 

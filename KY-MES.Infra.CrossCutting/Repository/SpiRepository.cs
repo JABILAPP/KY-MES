@@ -49,7 +49,7 @@ public class SpiRepository : ISpiRepository
                 StartTime = ur.StartTime,
                 EndTime = ur.EndTime,
                 ManufacturingArea = ur.ManufacturingArea,
-                Carrier = ""
+                Carrier = run.Carrier
             };
             unitsEntities.Add(u);
         }
@@ -73,7 +73,7 @@ public class SpiRepository : ISpiRepository
                     Comp = d.Comp,
                     Part = d.Part,
                     DefectCode = d.DefectCode,
-                    Carrier = ""
+                    Carrier = run.Carrier
                     
                 };
                 defectsToAdd.Add(def);

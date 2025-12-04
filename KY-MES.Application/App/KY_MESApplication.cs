@@ -62,7 +62,7 @@ namespace KY_MES.Controllers
                     if (start == null || !start.Success) throw new StartWipException("start Wip failed");
 
                     var complete = await _helpers.TryAddDefectWithRetry(
-                        () => _mes.AddDefectAsync(_utils.ToAddDefect(remapped, getWip), wipPrincipal),
+                        () => _mes.AddDefectAsync(_utils.ToAddDefect(remapped, getWip), wipPrincipal, remapped.Pallet!),
                         maxRetries: 2,
                         delayMs: 500
                     );
@@ -83,7 +83,7 @@ namespace KY_MES.Controllers
                     if (start == null || !start.Success) throw new StartWipException("start Wip failed");
 
                     var complete = await _helpers.TryAddDefectWithRetry(
-                        () => _mes.AddDefectAsync(_utils.ToAddDefect(remapped, getWip), wipPrincipal),
+                        () => _mes.AddDefectAsync(_utils.ToAddDefect(remapped, getWip), wipPrincipal, remapped.Pallet!),
                         maxRetries: 2,
                         delayMs: 500
                     );

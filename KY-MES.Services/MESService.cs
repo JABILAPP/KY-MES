@@ -172,7 +172,7 @@ namespace KY_MES.Services
             }
         }
 
-        public async Task<AddDefectResponseModel> AddDefectAsync(AddDefectRequestModel addDefectRequestModel, int WipId)
+        public async Task<AddDefectResponseModel> AddDefectAsync(AddDefectRequestModel addDefectRequestModel, int WipId, string carrier)
         {
             try
             {
@@ -273,7 +273,7 @@ namespace KY_MES.Services
                     throw new AddDefectException($"Erro ao executar AddDefect (COMPONENTES, HALBIM E HALBROUT NÃO ESTÃO SENDO ACEITOS PELO MES)");
                 }
 
-                await CompleteWipIoTAsync(WipId);
+                await CompleteWipIoTAsync(WipId, carrier);
 
                 return new AddDefectResponseModel();
             }
@@ -283,18 +283,34 @@ namespace KY_MES.Services
             }
         }
 
-        public async Task CompleteWipIoTAsync(int wipId)
+        public async Task CompleteWipIoTAsync(int wipId, string carrier)
         {
             try
             {
                 var completeWipIoTUrl = $"{MesBaseUrl}api-external-api/api/Wips/{wipId}/complete";
 
-                var completeWipIoTRequestModel = new CompleteWipIoTRequestModel
+
+                var completeModel = new CompleteWipPassRequestModel
                 {
                     WipId = wipId,
+                    Measurements = new List<MeasurementModel>
+                    {
+                        new MeasurementModel
+                        {
+                            MeasurementLabel = "Carrier",
+                            MeasurementData  = $"{carrier}",
+                            MeasureStatus = "Fail"
+                        }
+                    }
                 };
 
-                var jsonContent = JsonConvert.SerializeObject(completeWipIoTRequestModel);
+
+                //var completeWipIoTRequestModel = new CompleteWipIoTRequestModel
+                //{
+                //    WipId = wipId,
+                //};
+
+                var jsonContent = JsonConvert.SerializeObject(completeModel);
                 var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
 
                 var response = await _client.PostAsync(completeWipIoTUrl, content);
@@ -305,6 +321,36 @@ namespace KY_MES.Services
                 throw new Exception($"Erro ao executar o completeWipIoT. Mensagem: {ex.Message}");
             }
         }
+
+
+        //public async Task CompleteWipIoTAsync(CompleteWipPassRequestModel model)
+        //{
+        //    if (model == null) throw new ArgumentNullException(nameof(model));
+        //    if (model.WipId <= 0) throw new ArgumentException("WipId inválido no payload de complete.");
+
+        //    try
+        //    {
+        //        var url = $"{MesBaseUrl}api-external-api/api/Wips/{model.WipId}/complete";
+
+        //        var json = JsonConvert.SerializeObject(model);
+        //        using var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        //        var response = await _client.PostAsync(url, content);
+
+        //        if (!response.IsSuccessStatusCode)
+        //        {
+        //            var body = await response.Content.ReadAsStringAsync();
+        //            throw new Exception(
+        //                $"Falha ao completar WIP. Status: {(int)response.StatusCode} {response.ReasonPhrase}. Body: {body}");
+        //        }
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        throw new Exception($"Erro ao executar o completeWipIoT. Mensagem: {ex.Message}", ex);
+        //    }
+        //}
+
+
 
         public async Task<CompleteWipResponseModel> CompleteWipPassAsync(CompleteWipPassRequestModel completWipRequestModel, string WipId)
         {
@@ -718,10 +764,10 @@ namespace KY_MES.Services
 
             return;
         }
-        
-        
-        
-        
+
+
+
+
         #endregion
 
 
@@ -900,7 +946,7 @@ namespace KY_MES.Services
                 .GroupBy(pw => pw.PanelPosition)
                 .Select(g => g
                     .OrderBy(pw => pw.IsPanelBroken)
-                    .ThenBy(pw => string.IsNullOrWhiteSpace(pw.SerialNumber)) 
+                    .ThenBy(pw => string.IsNullOrWhiteSpace(pw.SerialNumber))
                     .First())
                 .OrderBy(pw => pw.PanelPosition)
                 .ToList();

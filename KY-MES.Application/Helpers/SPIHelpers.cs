@@ -359,7 +359,7 @@ namespace KY_MES.Application.Helpers
                     StartTime = ParseDate(runMeta?.Start),
                     EndTime = ParseDate(runMeta?.End),
                     ManufacturingArea = manufacturingArea,
-                    Carrier = ""
+                    Carrier = input.Pallet
                 };
 
                 var isNg = string.Equals(b.Result, "NG", StringComparison.OrdinalIgnoreCase);
@@ -389,7 +389,7 @@ namespace KY_MES.Application.Helpers
                 StartTime = ParseDateOffset(insp?.Start),
                 EndTime = ParseDateOffset(insp?.End),
                 ManufacturingArea = manufacturingArea,
-                Carrier = "",
+                Carrier = input.Pallet,
                 RawJson = JsonConvert.SerializeObject(input, Formatting.None)
             };
         }

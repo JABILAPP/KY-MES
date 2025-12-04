@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace KY_MES.Infra.CrossCutting.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20251203132101_CarrierTest")]
-    partial class CarrierTest
+    [Migration("20251204181113_AddCarrierColumn")]
+    partial class AddCarrierColumn
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

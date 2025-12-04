@@ -15,7 +15,7 @@ namespace KY_MES.Services.DomainServices.Interfaces
         Task<OkToStartResponseModel> OkToStartAsync(OkToStartRequestModel okToStartRequestModel);
         Task<StartWipResponseModel> StartWipAsync(StartWipRequestModel startWipRequestModel);
         Task<CompleteWipResponseModel> CompleteWipFailAsync(CompleteWipFailRequestModel completWipRequestModel, string WipId);
-        Task<AddDefectResponseModel> AddDefectAsync(AddDefectRequestModel addDefectRequestModel, int WipId);
+        Task<AddDefectResponseModel> AddDefectAsync(AddDefectRequestModel addDefectRequestModel, int WipId, string carrier);
         Task<CompleteWipResponseModel> CompleteWipPassAsync(CompleteWipPassRequestModel completWipRequestModel, string WipId);
 
 
