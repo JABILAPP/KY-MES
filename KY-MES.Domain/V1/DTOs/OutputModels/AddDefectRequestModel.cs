@@ -25,6 +25,18 @@ namespace KY_MES.Domain.V1.DTOs.OutputModels
         public bool? hasValidNumericField { get; set; }
 
         public List<PanelDefect> panelDefects { get; set; }
+    }
+
+
+    public class AddDefectRequestModelVenus
+
+    {
+
+        public long? wipId { get; set; }
+
+        public List<Defect> defects { get; set; }
+
+        public bool? hasValidNumericField { get; set; }
 
 
     }

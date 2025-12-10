@@ -23,6 +23,10 @@ namespace KY_MES.Domain.V1.DTOs.InputModels
 
         [JsonProperty("materialName")]
         public string? MaterialName { get; set; }
+
+        [JsonIgnore]
+        public bool HasMultipleBoards => Panel?.PanelWips != null && Panel.PanelWips.Any();
+
     }
 
     public partial class Panel

@@ -96,6 +96,62 @@ namespace KY_MES.Application.App.Utils
             };
         }
 
+        public AddDefectRequestModelVenus ToAddDefectVenus(SPIInputModel spi, GetWipIdBySerialNumberResponseModels getWip)
+        {
+            List<PanelDefect> panelDefects = new List<PanelDefect>();
+            List<Defect> mainDefects = new List<Defect>();
+
+            bool isPanelWithMultipleBoards = getWip?.Panel?.PanelWips != null && getWip.Panel.PanelWips.Any();
+
+            foreach (var board in spi.Board)
+            {
+                if (!board.Result.Contains("NG")) continue;
+
+                List<Defect> defectsByBoard = new List<Defect>();
+
+                foreach (var defect in board.Defects)
+                {
+                    defectsByBoard.Add(new Defect
+                    {
+                        defectId = "",
+                        defectName = defect.Defect,
+                        defectCRD = defect.Comp,
+                        defectComment = defect.Comp
+                    });
+                }
+
+                if (isPanelWithMultipleBoards)
+                {
+                    var matchingWipId = getWip.Panel.PanelWips
+                        .FirstOrDefault(pw => pw.PanelPosition == board.Array)?.WipId ?? 0;
+
+                    if (matchingWipId > 0)
+                    {
+                        panelDefects.Add(new PanelDefect
+                        {
+                            wipId = matchingWipId,
+                            defects = defectsByBoard,
+                            hasValidNumericField = true
+                        });
+                    }
+                }
+                else
+                {
+                    mainDefects.AddRange(defectsByBoard);
+                }
+            }
+
+            return new AddDefectRequestModelVenus
+            {
+                wipId = getWip.WipId,
+                defects = mainDefects,
+                hasValidNumericField = true
+            };
+        }
+
+
+
+
         public AddDefectRequestModel ToAddDefect(SPIInputModel spi, GetWipIdBySerialNumberResponseModels getWip)
         {
             List<PanelDefect> panelDefects = new List<PanelDefect>();
@@ -109,13 +165,9 @@ namespace KY_MES.Application.App.Utils
                     {
                         defectsByBoard.Add(new Defect
                         {
-                            //Original
-                            //defectId = "",
-                            //defectName = defect.Defect,
-                            //defectCRD = defect.Comp
                             defectId = "",
                             defectName = defect.Defect,
-                            defectCRD =  defect.Comp,
+                            defectCRD = defect.Comp,
                             defectComment = defect.Comp
                         });
                     }
@@ -128,7 +180,7 @@ namespace KY_MES.Application.App.Utils
                     {
                         wipId = matchingWipId,
                         defects = defectsByBoard,
-                        hasValidNumericField = true // Assuming no numeric fields are present
+                        hasValidNumericField = true 
                     });
                 }
             }
@@ -137,11 +189,10 @@ namespace KY_MES.Application.App.Utils
             {
                 wipId = getWip.WipId,
                 defects = [],
-                hasValidNumericField = true, // Assuming no numeric fields are present
+                hasValidNumericField = true, 
                 panelDefects = panelDefects
             };
         }
-
 
         public CompleteWipPassRequestModel ToCompleteWipPass(SPIInputModel spi, GetWipIdBySerialNumberResponseModels getWip)
         {

@@ -178,6 +178,19 @@ namespace KY_MES.Services
             {
                 var addDefectUrl = $"{MesBaseUrl}api-external-api/api/Wips/{WipId}/AddDefects";
 
+
+                if (addDefectRequestModel?.defects != null && addDefectRequestModel.defects.Any())
+                {
+                    addDefectRequestModel.defects = addDefectRequestModel.defects
+                        .GroupBy(d => new
+                        {
+                            Comp = (d.defectCRD ?? string.Empty).Trim(),
+                            Defect = (d.defectName ?? string.Empty).Trim(),
+                        })
+                        .Select(g => g.First())
+                        .ToList();
+                }
+
                 if (addDefectRequestModel?.panelDefects != null)
                 {
                     foreach (var panel in addDefectRequestModel.panelDefects)
@@ -203,6 +216,26 @@ namespace KY_MES.Services
 
                 if (response.StatusCode == HttpStatusCode.BadRequest)
                 {
+                    if (addDefectRequestModel?.defects != null)
+                    {
+                        foreach (var d in addDefectRequestModel.defects)
+                        {
+                            if (d == null) continue;
+                            d.defectCRD = "HALBIM";
+                            d.defectComment = "HALBIM";
+                        }
+
+                        addDefectRequestModel.defects = addDefectRequestModel.defects
+                            .GroupBy(d => new
+                            {
+                                Comp = (d.defectCRD ?? string.Empty).Trim(),
+                                Defect = (d.defectName ?? string.Empty).Trim(),
+                            })
+                            .Select(g => g.First())
+                            .ToList();
+                    }
+
+                    // Para painéis
                     if (addDefectRequestModel?.panelDefects != null)
                     {
                         foreach (var panel in addDefectRequestModel.panelDefects)
@@ -235,6 +268,24 @@ namespace KY_MES.Services
 
                 if (response.StatusCode == HttpStatusCode.BadRequest)
                 {
+                    if (addDefectRequestModel?.defects != null)
+                    {
+                        foreach (var d in addDefectRequestModel.defects)
+                        {
+                            if (d == null) continue;
+                            d.defectCRD = "HALBROUT";
+                            d.defectComment = "HALBROUT";
+                        }
+
+                        addDefectRequestModel.defects = addDefectRequestModel.defects
+                            .GroupBy(d => new
+                            {
+                                Comp = (d.defectCRD ?? string.Empty).Trim(),
+                                Defect = (d.defectName ?? string.Empty).Trim(),
+                            })
+                            .Select(g => g.First())
+                            .ToList();
+                    }
                     if (addDefectRequestModel?.panelDefects != null)
                     {
                         foreach (var panel in addDefectRequestModel.panelDefects)
@@ -282,6 +333,81 @@ namespace KY_MES.Services
                 throw new AddDefectException($"Erro ao executar AddDefect. Mensagem: {ex.Message}");
             }
         }
+
+
+
+        public async Task<AddDefectResponseModel> AddDefectAsyncVenus(AddDefectRequestModelVenus addDefectRequestModel, int WipId)
+        {
+            try
+            {
+                var addDefectUrl = $"{MesBaseUrl}api-external-api/api/Wips/{WipId}/AddDefects";
+
+
+                if (addDefectRequestModel?.defects != null && addDefectRequestModel.defects.Any())
+                {
+                    addDefectRequestModel.defects = addDefectRequestModel.defects
+                        .GroupBy(d => new
+                        {
+                            Comp = (d.defectCRD ?? string.Empty).Trim(),
+                            Defect = (d.defectName ?? string.Empty).Trim(),
+                        })
+                        .Select(g => g.First())
+                        .ToList();
+                }
+
+                var jsonContent = JsonConvert.SerializeObject(addDefectRequestModel);
+                var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
+
+                var response = await _client.PostAsync(addDefectUrl, content);
+
+                if (response.StatusCode == HttpStatusCode.BadRequest)
+                {
+                    if (addDefectRequestModel?.defects != null)
+                    {
+                        foreach (var d in addDefectRequestModel.defects)
+                        {
+                            if (d == null) continue;
+                            d.defectCRD = "LABEL3";
+                            d.defectComment = "LABEL3";
+                        }
+
+                        addDefectRequestModel.defects = addDefectRequestModel.defects
+                            .GroupBy(d => new
+                            {
+                                Comp = (d.defectCRD ?? string.Empty).Trim(),
+                                Defect = (d.defectName ?? string.Empty).Trim(),
+                            })
+                            .Select(g => g.First())
+                            .ToList();
+                    }
+
+                    jsonContent = JsonConvert.SerializeObject(addDefectRequestModel);
+                    content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
+
+                    response = await _client.PostAsync(addDefectUrl, content);
+                }
+
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    await AbourtStarted(WipId);
+
+                    var body = await response.Content.ReadAsStringAsync();
+                    throw new AddDefectException($"Erro ao executar AddDefect (COMPONENTES E LABEL3 NÃO ESTÃO SENDO ACEITOS PELO MES)");
+                }
+
+                await CompleteWipIoTAsync(WipId);
+
+                return new AddDefectResponseModel();
+            }
+            catch (Exception ex)
+            {
+                throw new AddDefectException($"Erro ao executar AddDefect. Mensagem: {ex.Message}");
+            }
+        }
+
+
+
 
         public async Task CompleteWipIoTAsync(int wipId)
         {
