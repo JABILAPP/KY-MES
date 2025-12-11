@@ -794,7 +794,7 @@ namespace KY_MES.Services
         public async Task AddAttribute(SPIInputModel input)
         {
             var serialNumber = input.Inspection.Barcode;
-            var pallet = input.Pallet;
+            //var pallet = input.Pallet;
 
             var wipsIds = await GetWipIds(serialNumber);
 
@@ -808,7 +808,7 @@ namespace KY_MES.Services
                     {
                         AttributeName = "Pallet",
                         AttributeType = "string",
-                        AttributeValue = pallet,
+                        //AttributeValue = pallet,
                         WipId = wipId.WipId,
                         PanelAttributeList = new List<PanelAttributeList>
                         {
@@ -821,7 +821,7 @@ namespace KY_MES.Services
                                     {
                                         AttributeName = "Pallet",
                                         AttributeType = "string",
-                                        AttributeValue = pallet
+                                        //AttributeValue = pallet
                                     }
                                 }
                             }

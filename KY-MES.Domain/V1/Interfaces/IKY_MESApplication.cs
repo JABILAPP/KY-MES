@@ -13,6 +13,7 @@ namespace KY_MES.Domain.V1.Interfaces
 
 
         Task <long> VenusSPISendWipData(SPIInputModel sPIInput);
+        Task <long> HermesSPISendWipData(SPIInputModel sPIInput);
 
     }
 }

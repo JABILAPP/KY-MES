@@ -150,5 +150,55 @@ namespace KY_MES.Controllers
             }
         }
 
+
+        [HttpPost("hermes")]
+        public async Task<IActionResult> HermesSPISendWipData([FromBody] SPIInputModel sPIInput)
+        {
+            try
+            {
+
+                var response = await _application.HermesSPISendWipData(sPIInput);
+
+                return Ok(new
+                {
+                    Result = "OK",
+                    Success = true,
+                    Code = 200
+                });
+
+            }
+            catch (CheckPVFailedException ex)
+            {
+                return BadRequest(new
+                {
+                    ErrorType = $"PCB não está na rota correta: {ex.Message}"
+                });
+            }
+            catch (StartWipException ex)
+            {
+                return BadRequest(new
+                {
+                    ErrorType = $"Erro ao Iniciar o STEP na Maquina, verificar a rota do produto: {ex.Message}"
+                });
+            }
+            catch (CompleteWipException ex)
+            {
+                return BadRequest(new
+                {
+                    ErrorType = $"Erro ao finalizar o registrar o Resultado no MES: {ex.Message}"
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new
+                {
+                    Result = "Error",
+                    Success = false,
+                    Code = 400,
+                    Message = "Error while sending SPI data to MES: " + ex.Message
+                });
+            }
+        }
+
     }
 }

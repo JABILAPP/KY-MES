@@ -208,10 +208,11 @@ namespace KY_MES.Controllers
                     if (start == null || !start.Success) throw new StartWipException("start Wip failed");
 
                     var complete = await _helpers.TryAddDefectWithRetry(
-                        () => _mes.AddDefectAsync(_utils.ToAddDefect(remapped, getWip), wipPrincipal),
+                        () => _mes.AddDefectAsyncVenus(_utils.ToAddDefectVenus(remapped, getWip), wipPrincipal),
                         maxRetries: 2,
                         delayMs: 500
                     );
+
                     if (complete == null) throw new CompleteWipException("complete wip failed");
                 }
                 else
@@ -292,6 +293,133 @@ namespace KY_MES.Controllers
             }
 
         }
+
+
+
+        public async Task<long> HermesSPISendWipData(SPIInputModel input)
+        {
+            var opHistory = await _mes.GetOperationInfoAsync(input.Inspection.Barcode);
+
+            _helpers.KeepOneDefectPerCRDIgnoringEmptyComp(input);
+            var remapped = await _helpers.MapearDefeitosSPICriandoNovo(input);
+
+            var getWip = await _mes.GetWipIdBySerialNumberAsync(_utils.SpiToGetWip(remapped));
+            if (getWip?.WipId == null || getWip.WipId <= 0) throw new Exception("WipId não encontrado");
+
+            var wipPrincipal = (int)getWip.WipId;
+            var wipIds = await _mes.GetWipIds(remapped.Inspection.Barcode!);
+
+
+            var isNg = remapped.Inspection.Result?.IndexOf("NG", StringComparison.OrdinalIgnoreCase) >= 0;
+            var isSPIMachine = _helpers.IsSPIMachine(remapped.Inspection.Machine);
+
+            CompleteWipResponseModel? completeWipResponse = null;
+
+
+            if (isNg)
+            {
+                if (isSPIMachine)
+                {
+                    // NG para SPI
+                    var resourceMachine = _helpers.BuildResourceMachine(opHistory?.ManufacturingArea, "- Repair 01");
+                    await _helpers.ExecutarReworkSeNecessario(_mes, wipIds, resourceMachine, wipPrincipal);
+
+                    var ok = await _mes.OkToStartAsync(_utils.ToOkToStart(remapped, getWip));
+                    if (ok == null || !ok.OkToStart) throw new CheckPVFailedException("Check PV failed");
+
+                    var start = await _mes.StartWipAsync(_utils.ToStartWip(remapped, getWip));
+                    if (start == null || !start.Success) throw new StartWipException("start Wip failed");
+
+                    var complete = await _helpers.TryAddDefectWithRetry(
+                        () => _mes.AddDefectAsync(_utils.ToAddDefect(remapped, getWip), wipPrincipal),
+                        maxRetries: 2,
+                        delayMs: 500
+                    );
+
+                    if (complete == null) throw new CompleteWipException("complete wip failed");
+                }
+                else
+                {
+                    // NG PARA AOI
+                    var resourceMachine = _helpers.BuildResourceMachine(opHistory?.ManufacturingArea, "- Repair 01");
+                    await _helpers.ExecutarReworkSeNecessario(_mes, wipIds, resourceMachine, wipPrincipal);
+
+                    var ok = await _mes.OkToStartAsync(_utils.ToOkToStart(remapped, getWip));
+                    if (ok == null || !ok.OkToStart) throw new CheckPVFailedException("Check PV failed");
+
+                    var start = await _mes.StartWipAsync(_utils.ToStartWip(remapped, getWip));
+                    if (start == null || !start.Success) throw new StartWipException("start Wip failed");
+
+                    var complete = await _helpers.TryAddDefectWithRetry(
+                        () => _mes.AddDefectAsync(_utils.ToAddDefect(remapped, getWip), wipPrincipal),
+                        maxRetries: 2,
+                        delayMs: 500
+                    );
+
+                    if (complete == null) throw new CompleteWipException("complete wip failed");
+                }
+            }
+            else
+            {
+                if (isSPIMachine)
+                {
+                    // OK para SS-DL / SP-DL (SPI)
+                    var resourceMachine = _helpers.BuildResourceMachine(opHistory?.ManufacturingArea, "- Repair 01");
+                    await _helpers.ExecutarReworkSeNecessario(_mes, wipIds, resourceMachine, wipPrincipal);
+                    var resourceFromLog = remapped.Inspection.Machine;
+
+
+                    var ok = await _mes.OkToStartAsync(_utils.ToOkToStart(remapped, getWip));
+                    if (ok == null || !ok.OkToStart) throw new CheckPVFailedException("Check PV failed");
+
+                    var start = await _mes.StartWipAsync(_utils.ToStartWip(remapped, getWip));
+                    if (start == null || !start.Success) throw new StartWipException("start Wip failed");
+
+
+                    completeWipResponse = await _mes.CompleteWipPassAsync(
+                        _utils.ToCompleteWipPass(remapped, getWip), getWip.WipId.ToString()
+                    );
+
+                }
+                else
+                {
+                    // OK para AOI 
+                    var resourceMachine = _helpers.BuildResourceMachine(opHistory?.ManufacturingArea, "- Repair 01");
+                    await _helpers.ExecutarReworkSeNecessario(_mes, wipIds, resourceMachine, wipPrincipal);
+
+                    var resourceFromLog = remapped.Inspection.Machine;
+
+                    var ok = await _mes.OkToStartAsync(_utils.ToOkToStart(remapped, getWip));
+                    if (ok == null || !ok.OkToStart) throw new CheckPVFailedException("Check PV failed");
+
+                    var start = await _mes.StartWipAsync(_utils.ToStartWip(remapped, getWip));
+                    if (start == null || !start.Success) throw new StartWipException("start Wip failed");
+
+
+                    completeWipResponse = await _mes.CompleteWipPassAsync(
+                        _utils.ToCompleteWipPass(remapped, getWip), getWip.WipId.ToString()
+                    );
+
+                }
+            }
+
+            // 6) db units + defects + runs
+            try
+            {
+                var units = await _helpers.BuildInspectionUnitRecords(remapped, opHistory, _mes);
+                var run = _helpers.BuildInspectionRun(remapped, opHistory?.ManufacturingArea);
+                var runId = await _repo.SaveSpiRunAsync(run, units);
+                return runId;
+            }
+            catch
+            {
+                return 0;
+            }
+
+        }
+
+
+
 
     }
 }
