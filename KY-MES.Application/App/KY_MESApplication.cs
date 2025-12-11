@@ -3,6 +3,7 @@ using KY_MES.Application.Helpers;
 using KY_MES.Domain.V1.DTOs.InputModels;
 using KY_MES.Domain.V1.Interfaces;
 using KY_MES.Services.DomainServices.Interfaces;
+using System.Net.Http.Headers;
 using CheckPVFailedException = KY_MES.Application.Exceptions.CheckPVFailedException;
 //using CompleteWipException = KY_MES.Application.CompleteWipException;
 using StartWipException = KY_MES.Application.Exceptions.StartWipException;
@@ -25,7 +26,7 @@ namespace KY_MES.Controllers
             _utils = new UtilsModel();
         }
 
-        public async Task<long> SPISendWipData(SPIInputModel input)
+        public async Task<long> SmartPhoneSendWipData(SPIInputModel input)
         {
             var opHistory = await _mes.GetOperationInfoAsync(input.Inspection.Barcode);
 
@@ -173,7 +174,7 @@ namespace KY_MES.Controllers
         }
 
 
-        public async Task <long> VenusSPISendWipData(SPIInputModel input)
+        public async Task <long> NotebookSendWipData(SPIInputModel input)
         {
             var opHistory = await _mes.GetOperationInfoAsync(input.Inspection.Barcode);
 
@@ -191,7 +192,6 @@ namespace KY_MES.Controllers
             var isSPIMachine = _helpers.IsSPIMachine(remapped.Inspection.Machine);
 
             CompleteWipResponseModel? completeWipResponse = null;
-
 
             if (isNg)
             {
@@ -296,7 +296,7 @@ namespace KY_MES.Controllers
 
 
 
-        public async Task<long> HermesSPISendWipData(SPIInputModel input)
+        public async Task<long> TabletSendWipData(SPIInputModel input)
         {
             var opHistory = await _mes.GetOperationInfoAsync(input.Inspection.Barcode);
 

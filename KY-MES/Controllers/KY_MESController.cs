@@ -21,14 +21,14 @@ namespace KY_MES.Controllers
             _application = application;
         }
 
-        [HttpPost]
-        public async Task<IActionResult> SPISendWipData([FromBody] SPIInputModel sPIInput)
+        [HttpPost("smartphone")]
+        public async Task<IActionResult> SmartPhoneSendWipData([FromBody] SPIInputModel sPIInput)
         {
             try
             {
 
                 //var response = await _application.SPISendWipDataLog(sPIInput);
-                var response = await _application.SPISendWipData(sPIInput);
+                var response = await _application.SmartPhoneSendWipData(sPIInput);
 
                 return Ok(new
                 {
@@ -100,14 +100,13 @@ namespace KY_MES.Controllers
         }
 
 
-
-        [HttpPost("venus")]
-        public async Task<IActionResult> VenusSPISendWipData([FromBody] SPIInputModel sPIInput)
+        [HttpPost("notebook")]
+        public async Task<IActionResult> NotebookSPISendWipData([FromBody] SPIInputModel sPIInput)
         {
             try
             {
 
-                var response = await _application.VenusSPISendWipData(sPIInput);
+                var response = await _application.NotebookSendWipData(sPIInput);
 
 
                 return Ok(new
@@ -151,13 +150,13 @@ namespace KY_MES.Controllers
         }
 
 
-        [HttpPost("hermes")]
-        public async Task<IActionResult> HermesSPISendWipData([FromBody] SPIInputModel sPIInput)
+        [HttpPost("tablet")]
+        public async Task<IActionResult> TabletSPISendWipData([FromBody] SPIInputModel sPIInput)
         {
             try
             {
 
-                var response = await _application.HermesSPISendWipData(sPIInput);
+                var response = await _application.TabletSendWipData(sPIInput);
 
                 return Ok(new
                 {

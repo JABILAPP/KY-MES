@@ -6,14 +6,14 @@ namespace KY_MES.Domain.V1.Interfaces
 {
     public interface IKY_MESApplication
     {
-        Task<long> SPISendWipData(SPIInputModel sPIInput);
+        Task<long> SmartPhoneSendWipData(SPIInputModel sPIInput);
         // Task<List<InspectionUnitRecord>> SPISendWipDataLog(SPIInputModel input);
         Task<long> SPISendWipDataLog(SPIInputModel input);
         //Task<List<InspectionUnitRecord>> BuildInspectionUnitRecords(SPIInputModel input, OperationInfo operationhistory);
 
 
-        Task <long> VenusSPISendWipData(SPIInputModel sPIInput);
-        Task <long> HermesSPISendWipData(SPIInputModel sPIInput);
+        Task <long> NotebookSendWipData(SPIInputModel sPIInput);
+        Task <long> TabletSendWipData(SPIInputModel sPIInput);
 
     }
 }
