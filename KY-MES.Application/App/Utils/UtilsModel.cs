@@ -1,9 +1,10 @@
 ﻿using KY_MES.Domain.V1.DTOs.InputModels;
 using KY_MES.Domain.V1.DTOs.OutputModels;
+using System.Collections.Generic;
 
-namespace KY_MES.Application.Utils
+namespace KY_MES.Application.App.Utils
 {
-    public class Utils
+    public class UtilsModel
     {
         public SignInRequestModel SignInRequest(string username, string password)
         {
@@ -15,7 +16,7 @@ namespace KY_MES.Application.Utils
         }
         public GetWipIdBySerialNumberRequestModel SpiToGetWip(SPIInputModel spi)
         {
-            return new GetWipIdBySerialNumberRequestModel 
+            return new GetWipIdBySerialNumberRequestModel
             {
                 SiteName = "Manaus",
                 SerialNumber = spi.Inspection.Barcode
@@ -44,11 +45,11 @@ namespace KY_MES.Application.Utils
 
         public CompleteWipFailRequestModel ToCompleteWipFail(SPIInputModel spi, GetWipIdBySerialNumberResponseModels getWip)
         {
-            
+
             List<Failure> failures = [];
             List<PanelFailureLabelList> panelFailureLabels = [];
 
-            foreach(var board in spi.Board)
+            foreach (var board in spi.Board)
             {
                 if (board.Result.Contains("NG"))
                 {
@@ -67,8 +68,8 @@ namespace KY_MES.Application.Utils
                             existingLabels.Add(defect.Review);
                         }
                     }
-                    var matchingWipId = (from panelWips 
-                                         in getWip.Panel.PanelWips 
+                    var matchingWipId = (from panelWips
+                                         in getWip.Panel.PanelWips
                                          where board.Array == panelWips.PanelPosition
                                          select panelWips.WipId).FirstOrDefault().GetValueOrDefault();
 
@@ -101,12 +102,12 @@ namespace KY_MES.Application.Utils
 
             foreach (var board in spi.Board)
             {
-                List<Domain.V1.DTOs.OutputModels.Defect> defectsByBoard = new List<Domain.V1.DTOs.OutputModels.Defect>();
+                List<Defect> defectsByBoard = new List<Defect>();
                 if (board.Result.Contains("NG"))
                 {
                     foreach (var defect in board.Defects)
                     {
-                        defectsByBoard.Add(new Domain.V1.DTOs.OutputModels.Defect
+                        defectsByBoard.Add(new Defect
                         {
                             //Original
                             //defectId = "",
@@ -114,7 +115,7 @@ namespace KY_MES.Application.Utils
                             //defectCRD = defect.Comp
                             defectId = "",
                             defectName = defect.Defect,
-                            defectCRD = "HALBIM",
+                            defectCRD =  defect.Comp,
                             defectComment = defect.Comp
                         });
                     }
@@ -139,43 +140,6 @@ namespace KY_MES.Application.Utils
                 hasValidNumericField = true, // Assuming no numeric fields are present
                 panelDefects = panelDefects
             };
-        }
-
-        public async Task<CompleteWipResponseModel> AddDefectToCompleteWip(Task<AddDefectResponseModel> addDefectResponseTask)
-        {
-            //var addDefectResponseAwiated = await addDefectResponseTask;
-            //var addDefectResponse = addDefectResponseAwiated ?? throw new Exception("AddDefectResponse is null");
-
-            //return new CompleteWipResponseModel
-            //{
-            //    WipInQueueRouteSteps = new List<WipInQueueRouteStep>
-            //    {
-            //        new WipInQueueRouteStep
-            //        {
-            //            SerialNumber = addDefectResponse.Id.ToString(),
-            //            InQueueRouteStep = new List<InQueueRouteStep>
-            //            {
-            //                new InQueueRouteStep
-            //                {
-            //                    RouteStepId = addDefectResponse.Id,
-            //                    RouteStepName = addDefectResponse.MaterialName
-            //                }
-            //            }
-            //        }
-            //    },
-            //    ResponseMessages = new List<string>
-            //    {
-            //        addDefectResponse.Status,
-            //        addDefectResponse.PassStatus
-            //    },
-            //    Document = new Document
-            //    {
-            //        Model = new List<object> { addDefectResponse.MaterialName },
-            //        ErrorMessage = addDefectResponse.Status
-            //    }
-            //};
-
-            return new CompleteWipResponseModel();
         }
 
 

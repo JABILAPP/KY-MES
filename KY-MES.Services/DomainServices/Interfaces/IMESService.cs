@@ -17,5 +17,33 @@ namespace KY_MES.Services.DomainServices.Interfaces
         Task<CompleteWipResponseModel> CompleteWipFailAsync(CompleteWipFailRequestModel completWipRequestModel, string WipId);
         Task<AddDefectResponseModel> AddDefectAsync(AddDefectRequestModel addDefectRequestModel, int WipId);
         Task<CompleteWipResponseModel> CompleteWipPassAsync(CompleteWipPassRequestModel completWipRequestModel, string WipId);
+
+
+
+        // new methods
+        Task<List<int>> GetIndictmentIds(int wipId);
+        Task<List<WipSerial>> GetWipIds(string serialNumber);
+        Task OkToStartRework(int wipId, string resourceName, string serialNumber);
+        Task AddRework(int wipId, int indicmentId);
+        Task CompleteRework(int wipId);
+        Task<OperationInfo?> GetOperationInfoAsync(string serialNumber);
+        Task<List<SPIWipInfo>> GetPanelWipInfoAsync(string runBarCode, CancellationToken ct = default);
+
+
+
+        // pallet tracking 
+        Task AddAttribute(SPIInputModel input);
+
+
+
+        // BOM comparing 
+        Task<string> GetProgramInBom(int assemblyId);
+        Task<string> GetProgramInBomSPI(int assemblyId);
+        Task<int> GetAssemblyId(int wipId);
+
+
+
+        // full operation complete pass 
+        Task<CompleteWipResponseModel> FullWipOpCompletePass(OperationInfo operationInfo, GetWipIdBySerialNumberResponseModels getWipResponse);
     }
 }

@@ -1,0 +1,15 @@
+﻿{
+  "$schema": "http://json.schemastore.org/launchsettings.json",
+  "profiles": {
+    "KY_MES_TokenLoggerWorker": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "MES_BASE_URL": "https://man-prd.jemsms.corp.jabil.org/",
+        "Username": "svchua_jesmapistg",
+        "Password": "qKzla3oBDA51Ecq=+B2_z"
+      }
+    }
+  }
+}
