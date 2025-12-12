@@ -49,6 +49,8 @@ public class SpiRepository : ISpiRepository
                 StartTime = ur.StartTime,
                 EndTime = ur.EndTime,
                 ManufacturingArea = ur.ManufacturingArea,
+                Customer = ur.Customer,
+                CreatedAt = DateTime.Now,
                 //Carrier = ""
             };
             unitsEntities.Add(u);

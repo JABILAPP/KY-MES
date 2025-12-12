@@ -28,6 +28,7 @@ namespace KY_MES.Domain.V1.DTOs.InputModels
         public DateTime? StartTime { get; set; }
         public DateTime? EndTime { get; set; }
         public string? ManufacturingArea { get; set; }
+        public string? Customer { get; set; }
         public List<NormalizedDefect> Defects { get; set; } = new();
         public string? Carrier { get; set; }
     }
@@ -54,6 +55,7 @@ namespace KY_MES.Domain.V1.DTOs.InputModels
         public DateTimeOffset? StartTime { get; set; }
         public DateTimeOffset? EndTime { get; set; }
         public string? ManufacturingArea { get; set; }
+        public string? Customer { get; set; }
         public string? RawJson { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public List<InspectionUnit> Units { get; set; } = new();
@@ -73,6 +75,7 @@ namespace KY_MES.Domain.V1.DTOs.InputModels
         public DateTimeOffset? StartTime { get; set; }
         public DateTimeOffset? EndTime { get; set; }
         public string? ManufacturingArea { get; set; }
+        public string? Customer { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         public InspectionRun Run { get; set; } = null!;
         public List<InspectionDefect> Defects { get; set; } = new();

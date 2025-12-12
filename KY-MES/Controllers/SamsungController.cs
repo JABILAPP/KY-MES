@@ -11,12 +11,12 @@ using System.Net;
 namespace KY_MES.Controllers
 {
     [ApiController]
-    [Route("api")]
+    [Route("samsung")]
     [EnableCors("AllowAllOrigins")]
-    public class KY_MESController : ControllerBase
+    public class SamsungController : ControllerBase
     {
         private readonly IKY_MESApplication _application;
-        public KY_MESController(IKY_MESApplication application = null)
+        public SamsungController(IKY_MESApplication application = null)
         {
             _application = application;
         }
@@ -105,8 +105,8 @@ namespace KY_MES.Controllers
         {
             try
             {
-
-                var response = await _application.NotebookSendWipData(sPIInput);
+                var response = await _application.SPISendWipDataLog(sPIInput);
+                //var response = await _application.NotebookSendWipData(sPIInput);
 
 
                 return Ok(new

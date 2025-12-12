@@ -30,6 +30,8 @@ namespace KY_MES.Controllers
         {
             var opHistory = await _mes.GetOperationInfoAsync(input.Inspection.Barcode);
 
+            var customerName = opHistory.CustomerName;
+
             _helpers.KeepOneDefectPerCRDIgnoringEmptyComp(input);
             var remapped = await _helpers.MapearDefeitosSPICriandoNovo(input);
 
@@ -141,7 +143,7 @@ namespace KY_MES.Controllers
             try
             {
                 var units = await _helpers.BuildInspectionUnitRecords(remapped, opHistory, _mes);
-                var run = _helpers.BuildInspectionRun(remapped, opHistory?.ManufacturingArea);
+                var run = _helpers.BuildInspectionRun(remapped, opHistory?.ManufacturingArea, opHistory);
                 var runId = await _repo.SaveSpiRunAsync(run, units);
                 return runId;
             }
@@ -161,14 +163,13 @@ namespace KY_MES.Controllers
             var getWip = await _mes.GetWipIdBySerialNumberAsync(_utils.SpiToGetWip(input));
             if (getWip?.WipId == null || getWip.WipId <= 0) throw new Exception("WipId não encontrado");
 
-            //await _helpers.ValidateProgramEqualsBomStrict(input, (int)getWip.WipId);
-
             var opHistory = await _mes.GetOperationInfoAsync(input.Inspection.Barcode);
 
-            var units = await _helpers.BuildInspectionUnitRecords(input, opHistory, _mes);
-            //await _mes.AddAttribute(input);
+            var customerName = opHistory.CustomerName;
 
-            var run = _helpers.BuildInspectionRun(input, opHistory?.ManufacturingArea);
+            var units = await _helpers.BuildInspectionUnitRecords(input, opHistory, _mes);
+
+            var run = _helpers.BuildInspectionRun(input, opHistory?.ManufacturingArea, opHistory);
             var runId = await _repo.SaveSpiRunAsync(run, units);
             return runId;
         }
@@ -283,7 +284,7 @@ namespace KY_MES.Controllers
             try
             {
                 var units = await _helpers.BuildInspectionUnitRecords(remapped, opHistory, _mes);
-                var run = _helpers.BuildInspectionRun(remapped, opHistory?.ManufacturingArea);
+                var run = _helpers.BuildInspectionRun(remapped, opHistory?.ManufacturingArea, opHistory);
                 var runId = await _repo.SaveSpiRunAsync(run, units);
                 return runId;
             }
@@ -407,7 +408,7 @@ namespace KY_MES.Controllers
             try
             {
                 var units = await _helpers.BuildInspectionUnitRecords(remapped, opHistory, _mes);
-                var run = _helpers.BuildInspectionRun(remapped, opHistory?.ManufacturingArea);
+                var run = _helpers.BuildInspectionRun(remapped, opHistory?.ManufacturingArea, opHistory);
                 var runId = await _repo.SaveSpiRunAsync(run, units);
                 return runId;
             }

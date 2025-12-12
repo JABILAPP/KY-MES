@@ -311,6 +311,7 @@ namespace KY_MES.Application.Helpers
             IMESService mes)
         {
             var manufacturingArea = operationhistory?.ManufacturingArea;
+            var customerName = operationhistory.CustomerName;
 
             var baseUnitBarcode = input.Board?
                 .FirstOrDefault(b => !string.IsNullOrWhiteSpace(b.Barcode))?.Barcode;
@@ -359,6 +360,7 @@ namespace KY_MES.Application.Helpers
                     StartTime = ParseDate(runMeta?.Start),
                     EndTime = ParseDate(runMeta?.End),
                     ManufacturingArea = manufacturingArea,
+                    Customer = customerName
                     //Carrier = ""
                 };
 
@@ -373,9 +375,10 @@ namespace KY_MES.Application.Helpers
             return units;
         }
 
-        public InspectionRun BuildInspectionRun(SPIInputModel input, string? manufacturingArea)
+        public InspectionRun BuildInspectionRun(SPIInputModel input, string? manufacturingArea, OperationInfo operationInfo)
         {
             var insp = input.Inspection;
+            var customerName = operationInfo.CustomerName;
 
             return new InspectionRun
             {
@@ -389,6 +392,7 @@ namespace KY_MES.Application.Helpers
                 StartTime = ParseDateOffset(insp?.Start),
                 EndTime = ParseDateOffset(insp?.End),
                 ManufacturingArea = manufacturingArea,
+                Customer = customerName,
                 //Carrier = "",
                 RawJson = JsonConvert.SerializeObject(input, Formatting.None)
             };
