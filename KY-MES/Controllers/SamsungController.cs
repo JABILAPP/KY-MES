@@ -105,8 +105,8 @@ namespace KY_MES.Controllers
         {
             try
             {
-                var response = await _application.SPISendWipDataLog(sPIInput);
-                //var response = await _application.NotebookSendWipData(sPIInput);
+                //var response = await _application.SPISendWipDataLog(sPIInput);
+                var response = await _application.NotebookSendWipData(sPIInput);
 
 
                 return Ok(new
